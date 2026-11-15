@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1d4ed8">
+<title>단어 연습</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="bar">
+  <h1>단어 연습</h1>
+  <nav id="tabs" aria-label="화면 선택">
+    <button type="button" data-tab="lessons" class="on">단원</button>
+    <button type="button" data-tab="make">시험지</button>
+    <button type="button" data-tab="settings">설정</button>
+  </nav>
+</header>
+
+<main>
+  <!-- 단원 -->
+  <section id="tab-lessons">
+    <div class="card">
+      <h2>단원 데이터 가져오기</h2>
+      <p class="hint">부모님이 만든 단원 데이터(JSON 파일)를 이 기기에 넣어요. 교재 내용이라서 인터넷에 올라가지 않고 <b>이 기기에만</b> 저장돼요.</p>
+      <label class="field">파일 고르기(여러 개 가능)
+        <input type="file" id="fileIn" accept=".json,application/json" multiple>
+      </label>
+      <label class="field">또는 여기에 붙여 넣기
+        <textarea id="pasteIn" rows="4" placeholder='{"kind": "word", ...}'></textarea>
+      </label>
+      <button type="button" id="btnImport" class="primary">가져오기</button>
+      <div id="importMsg" role="status" aria-live="polite"></div>
+    </div>
+    <div id="lessonList"></div>
+  </section>
+
+  <!-- 시험지 -->
+  <section id="tab-make" hidden>
+    <div id="makeEmpty" class="card">먼저 「단원」 화면에서 단원을 골라 「시험지 만들기」를 눌러 주세요.</div>
+    <div id="makePanel" hidden>
+      <div class="card">
+        <h2 id="makeTitle"></h2>
+        <div id="optsWord">
+          <label class="field">종류
+            <select id="wMode">
+              <option value="regular">학원 시험 모양 (쓰기 6 + 보기 번호 4)</option>
+              <option value="all-write">전체 쓰기 연습 (모든 단어를 직접 쓰기)</option>
+            </select>
+          </label>
+          <label class="field" id="wPartsBox" hidden>낼 파트
+            <select id="wParts">
+              <option value="AB">Part A + Part B</option>
+              <option value="A">Part A만 (뜻 보고 단어 쓰기)</option>
+              <option value="B">Part B만 (문장 빈칸)</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="wWeak"> 약한 단어만 (틀린 단어 재시험)</label>
+        </div>
+        <div id="optsChunk" hidden>
+          <label class="field">종류
+            <select id="cMode">
+              <option value="sample">학원 시험 모양 (일부만 출제, 20점)</option>
+              <option value="full">범위 전체 연습</option>
+            </select>
+          </label>
+          <label class="field">Fill in 첫 글자 힌트
+            <select id="cHint"></select>
+          </label>
+        </div>
+        <details>
+          <summary>더 설정하기</summary>
+          <label class="field">반 코드 (머리글 왼쪽 위, 비워도 돼요)
+            <input type="text" id="optClass" autocomplete="off">
+          </label>
+          <label class="field">시험지 번호 (같은 시험지를 다시 만들 때만 입력)
+            <input type="text" id="optSeed" inputmode="numeric" autocomplete="off" placeholder="비우면 매번 새 순서">
+          </label>
+        </details>
+        <label class="check"><input type="checkbox" id="optKey" checked> 정답지 쪽 포함</label>
+        <div class="row">
+          <button type="button" id="btnMake" class="primary">새 시험지 만들기</button>
+          <button type="button" id="btnPrint">인쇄 / PDF 저장</button>
+        </div>
+      </div>
+      <div id="makeInfo" class="card" hidden></div>
+      <iframe id="sheet" title="시험지 미리보기"></iframe>
+    </div>
+  </section>
+
+  <!-- 설정 -->
+  <section id="tab-settings" hidden>
+    <div class="card">
+      <h2>아이 이름 표시</h2>
+      <p class="hint">단원 데이터에는 「아이 A·B」만 적혀 있어요. 이 기기 화면에서만 이름을 함께 보여 줘요. 시험지에는 들어가지 않아요.</p>
+      <label class="field">아이 A 이름 <input type="text" id="nameA" autocomplete="off"></label>
+      <label class="field">아이 B 이름 <input type="text" id="nameB" autocomplete="off"></label>
+      <button type="button" id="btnNames">저장</button>
+      <span id="namesMsg" role="status"></span>
+    </div>
+    <div class="card">
+      <h2>백업</h2>
+      <p class="hint">브라우저 데이터를 지우면 가져온 단원이 사라져요. 백업 파일을 만들어 두면 다시 넣을 수 있어요.</p>
+      <div class="row">
+        <button type="button" id="btnExport">백업 파일 만들기</button>
+        <label class="btn">백업 파일 가져오기<input type="file" id="backupIn" accept=".json,application/json" hidden></label>
+      </div>
+      <div id="backupMsg" role="status" aria-live="polite"></div>
+    </div>
+    <div class="card">
+      <h2>이 기기에서 지우기</h2>
+      <button type="button" id="btnWipe" class="danger">가져온 단원 모두 지우기</button>
+    </div>
+    <div class="card small">
+      <h2>안내</h2>
+      <ul>
+        <li>입력 칸에서 자동 대문자와 자동 완성이 켜져 있으면 철자 연습이 어려워요. 삼성 키보드는 설정에서 「자동 대문자」와 「예측 텍스트」를 꺼 주세요.</li>
+        <li>집 채점은 항상 엄격해요. 철자 한 글자, 대소문자, -ed·-s가 빠지면 0점이에요.</li>
+        <li id="storageNote"></li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<!-- 확인 표 -->
+<div id="dlg" class="overlay" hidden>
+  <div class="dlgbox" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <div class="dlghead"><h2 id="dlgTitle">확인 표</h2><button type="button" id="dlgClose">닫기</button></div>
+    <div id="dlgBody"></div>
+  </div>
+</div>
+
+<script src="js/util.js"></script>
+<script src="js/word.js"></script>
+<script src="js/chunk.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+:root{
+  --bg:#f4f6fb; --card:#fff; --ink:#111827; --sub:#4b5563; --line:#d7dce5; --brand:#1d4ed8; --brand-ink:#fff;
+  --warn:#b91c1c; --warn-bg:#fef2f2; --ok:#047857; --ok-bg:#ecfdf5; --amber:#92400e; --amber-bg:#fffbeb;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0f172a; --card:#1e293b; --ink:#f1f5f9; --sub:#b6c2d4; --line:#334155; --brand:#60a5fa; --brand-ink:#0b1220;
+    --warn:#fca5a5; --warn-bg:#3b1517; --ok:#6ee7b7; --ok-bg:#0f2f25; --amber:#fcd34d; --amber-bg:#35290b; }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;word-break:keep-all}
+.bar{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px 0}
+.bar h1{margin:0 0 6px;font-size:18px}
+#tabs{display:flex;gap:4px}
+#tabs button{flex:1;min-height:44px;border:0;border-bottom:3px solid transparent;background:none;color:var(--sub);font:inherit;font-weight:600;cursor:pointer}
+#tabs button.on{color:var(--brand);border-bottom-color:var(--brand)}
+main{max-width:860px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:0 0 14px}
+.card h2{margin:0 0 8px;font-size:17px}
+.card.small{font-size:14px;color:var(--sub)}
+.card.small ul{margin:0;padding-left:18px}
+.hint{margin:0 0 12px;color:var(--sub);font-size:14px}
+.field{display:block;margin:0 0 12px;font-size:14px;color:var(--sub)}
+.field input[type=text],.field select,.field textarea{display:block;width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:16px/1.4 inherit}
+.field textarea{font-family:ui-monospace,Consolas,monospace;font-size:13px}
+.check{display:flex;align-items:center;gap:8px;margin:0 0 12px;min-height:40px}
+.check input{width:20px;height:20px}
+details{margin:0 0 12px}
+summary{cursor:pointer;color:var(--brand);font-weight:600;min-height:40px;display:flex;align-items:center}
+button,.btn{min-height:44px;padding:0 16px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+button.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+button.danger{color:var(--warn);border-color:var(--warn)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+.msg{margin-top:10px;padding:10px 12px;border-radius:8px;font-size:14px;white-space:pre-wrap}
+.msg.ok{background:var(--ok-bg);color:var(--ok)}
+.msg.err{background:var(--warn-bg);color:var(--warn)}
+.msg.warn{background:var(--amber-bg);color:var(--amber)}
+.lesson{display:flex;flex-direction:column;gap:6px}
+.lesson .head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-weight:700}
+.lesson .meta{color:var(--sub);font-size:14px}
+.badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:700}
+.badge.ok{background:var(--ok-bg);color:var(--ok)}
+.badge.warn{background:var(--warn-bg);color:var(--warn)}
+.badge.kind{background:var(--bg);color:var(--sub);border:1px solid var(--line)}
+#sheet{display:block;width:100%;height:78vh;min-height:520px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.overlay{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.5);display:flex;align-items:flex-start;justify-content:center;padding:16px;overflow:auto}
+.overlay[hidden]{display:none}
+.dlgbox{width:100%;max-width:880px;background:var(--card);border-radius:12px;padding:16px}
+.dlghead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.dlghead h2{margin:0;font-size:17px}
+table.ct{width:100%;border-collapse:collapse;font-size:14px}
+table.ct th,table.ct td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+table.ct th{background:var(--bg)}
+[hidden]{display:none !important}
+@media (max-width:520px){ main{padding:12px} .card{padding:14px} }

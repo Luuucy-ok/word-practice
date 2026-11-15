@@ -1,0 +1,9 @@
+# 교재 내용(저작권)과 비밀 값은 이 저장소에 올리지 않는다
+단원데이터/
+*.lesson.json
+*.lesson.js
+단어연습-백업-*.json
+.env
+.env.*
+test-output/
+node_modules/
