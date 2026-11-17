@@ -186,28 +186,66 @@
   }
 
   var pendingConnect = null;
-  function askConnect(parsed) {
-    pendingConnect = parsed;
+  var pickBase = null; // 아이를 고르는 링크로 들어온 경우, 고르기 전의 연결 정보(뒤로 갈 때 쓴다)
+
+  function childLabel(code) {
+    var name = WT.store.settings()["name" + code];
+    return WT.sync.CHILD_OWNER[code] + (name ? "(" + name + ")" : "");
+  }
+
+  function oldChildWarning(code) {
     var old = WT.store.getConnection();
-    var s = WT.store.settings();
-    var who = WT.sync.CHILD_OWNER[parsed.child];
-    var name = s["name" + parsed.child];
-    var text = "이 기기를 " + who + (name ? "(" + name + ")" : "") + " 용으로 연결할까요? 연결하면 부모님이 올린 " + who + " 단원이 자동으로 들어와요.";
-    if (old && old.child !== parsed.child) {
-      text += "\n\n⚠ 이 기기는 지금 " + WT.sync.CHILD_OWNER[old.child] + " 용으로 연결돼 있어요. 연결하면 " + WT.sync.CHILD_OWNER[old.child] + " 단원은 이 기기에서 지워져요.";
-    }
+    if (!old || old.child === code) return "";
+    return "\n\n⚠ 이 기기는 지금 " + WT.sync.CHILD_OWNER[old.child] + " 용으로 연결돼 있어요. 연결하면 " + WT.sync.CHILD_OWNER[old.child] + " 단원은 이 기기에서 지워져요.";
+  }
+
+  // 링크에 아이가 정해져 있지 않으면 이 기기를 쓸 아이를 고르게 한다. 한 번 고르면 연결 끊기 전까지 그 아이 용으로 고정된다.
+  function showPick(parsed) {
+    pickBase = parsed;
+    pendingConnect = null;
     var p = $("connectText");
-    p.textContent = text;
+    p.textContent = "이 기기를 쓸 아이를 골라 주세요. 고르면 부모님이 올린 그 아이의 단원이 자동으로 들어와요. 한 번 연결하면 이 기기는 그 아이 용으로 고정돼요(바꾸려면 설정의 「연결 끊기」).";
     p.style.whiteSpace = "pre-line";
-    msg($("connectMsg"), "", "");
-    $("btnConnectOk").hidden = false;
+    $("btnPickA").textContent = childLabel("A");
+    $("btnPickB").textContent = childLabel("B");
+    $("connectPick").hidden = false;
+    $("btnConnectOk").hidden = true;
     $("btnConnectCancel").textContent = "취소";
+    msg($("connectMsg"), "", "");
     $("connectBox").hidden = false;
     showTab("lessons");
   }
 
+  function askConnect(parsed) {
+    if (!parsed.child) { showPick(parsed); return; }
+    pendingConnect = parsed;
+    var who = WT.sync.CHILD_OWNER[parsed.child];
+    var text = "이 기기를 " + childLabel(parsed.child) + " 용으로 연결할까요? 연결하면 부모님이 올린 " + who + " 단원이 자동으로 들어와요." + oldChildWarning(parsed.child);
+    var p = $("connectText");
+    p.textContent = text;
+    p.style.whiteSpace = "pre-line";
+    msg($("connectMsg"), "", "");
+    $("connectPick").hidden = true;
+    $("btnConnectOk").hidden = false;
+    $("btnConnectCancel").textContent = pickBase ? "뒤로" : "취소";
+    $("connectBox").hidden = false;
+    showTab("lessons");
+  }
+
+  function pickChild(code) {
+    if (!pickBase) return;
+    askConnect(Object.assign({}, pickBase, { child: code }));
+  }
+
+  function cancelConnect() {
+    if (pickBase && pendingConnect) { showPick(pickBase); return; } // 확인 단계에서는 아이 고르기로 돌아간다
+    closeConnect();
+  }
+
   function closeConnect() {
     pendingConnect = null;
+    pickBase = null;
+    $("connectPick").hidden = true;
     $("connectBox").hidden = true;
     msg($("connectMsg"), "", "");
   }
@@ -239,6 +277,8 @@
     try { parsed = WT.sync.parseConnect(hash); }
     catch (e) {
       pendingConnect = null;
+      pickBase = null;
+      $("connectPick").hidden = true;
       $("connectText").textContent = "연결하지 못했어요.";
       msg($("connectMsg"), "err", e.message);
       $("btnConnectOk").hidden = true;
@@ -428,7 +468,9 @@
     $("btnImport").addEventListener("click", doImport);
     $("btnSync").addEventListener("click", function () { runSync(true); });
     $("btnConnectOk").addEventListener("click", doConnect);
-    $("btnConnectCancel").addEventListener("click", closeConnect);
+    $("btnConnectCancel").addEventListener("click", cancelConnect);
+    $("btnPickA").addEventListener("click", function () { pickChild("A"); });
+    $("btnPickB").addEventListener("click", function () { pickChild("B"); });
     $("btnDisconnect").addEventListener("click", function () {
       if (!window.confirm("연결을 끊을까요? 부모님이 올려 준 단원이 이 기기에서 지워지고, 다시 받으려면 새 연결 링크가 필요해요.")) return;
       WT.sync.disconnect();

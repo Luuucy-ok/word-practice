@@ -61,7 +61,12 @@ function throws(fn) { try { fn(); return null; } catch (e) { return e.message; }
   check(/대상 아이/.test(throws(function () { WT.sync.parseConnect("#connect=" + enc({ v: 1, c: "C", t: TOKEN })); })), "알 수 없는 아이 코드를 거부함");
   check(/열쇠/.test(throws(function () { WT.sync.parseConnect("#connect=" + enc({ v: 1, c: "A", t: "짧음 abc" })); })), "열쇠 형식이 이상하면 거부함");
   check(/이 앱에서 쓸 수 없는/.test(throws(function () { WT.sync.parseConnect("#connect=" + enc({ v: 2, c: "A", t: TOKEN })); })), "버전이 다른 링크를 거부함");
-
+  var pn = WT.sync.parseConnect("#connect=" + enc({ v: 1, t: TOKEN, x: "2027-11-16T15:00:00Z" }));
+  check(pn && pn.child === null && pn.token === TOKEN && pn.expires === "2027-11-16T15:00:00Z", "아이 코드가 없는 링크는 child null 로 해석함(기기에서 고름)");
+  check(/대상 아이/.test(throws(function () { WT.sync.parseConnect("#connect=" + enc({ v: 1, c: "", t: TOKEN })); })), "빈 아이 코드는 거부함");
+  var before = server.calls.length;
+  var noPick = await WT.sync.connect(pn);
+  check(noPick.status === "error" && /골라/.test(noPick.message) && server.calls.length === before && WT.store.getConnection() === null, "아이를 고르지 않고 연결을 시도하면 요청 없이 거부함");
   // --- 연결 전에는 아무것도 하지 않음
   var r0 = await WT.sync.run(true);
   check(r0.status === "none" && server.calls.length === 0, "연결 전에는 요청을 보내지 않음");

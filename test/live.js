@@ -52,9 +52,12 @@ function getJson(url) {
 
   await send("Page.enable");
   await send("Runtime.enable");
-  var link = Buffer.from(JSON.stringify({ v: 1, c: child, t: token }), "utf8").toString("base64url");
+  // 진짜 링크처럼 아이 코드 없는 공용 링크를 열고, 기기에서 아이를 고른다.
+  var link = Buffer.from(JSON.stringify({ v: 1, t: token }), "utf8").toString("base64url");
   await send("Page.navigate", { url: index + "#connect=" + link });
   await sleep(1500);
+  check(/골라 주세요/.test(await T("#connectText")), "아이를 고르는 화면이 뜸");
+  await ev("document.getElementById('btnPick" + child + "').click()");
   check(/용으로 연결할까요/.test(await T("#connectText")), "연결 확인 화면이 뜸");
   await ev("document.getElementById('btnConnectOk').click()");
   await sleep(3500);

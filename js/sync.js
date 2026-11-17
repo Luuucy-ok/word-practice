@@ -33,14 +33,16 @@
     var o;
     try { o = JSON.parse(b64urlDecode(m[1])); }
     catch (e) { throw new Error("연결 링크가 깨져 있어요. 링크를 끝까지 복사했는지 확인하고, 안 되면 부모님께 새 링크를 받아 주세요."); }
-    if (!o || o.v !== 1 || !CHILD_FILE[o.c]) throw new Error("이 앱에서 쓸 수 없는 연결 링크예요(대상 아이를 알 수 없어요).");
+    // 아이 코드(c)가 없는 링크는 이 기기에서 아이를 고르게 한다(child: null). 코드가 있으면 알려진 값이어야 한다.
+    var hasChild = o && o.c !== undefined && o.c !== null;
+    if (!o || o.v !== 1 || (hasChild && !CHILD_FILE[o.c])) throw new Error("이 앱에서 쓸 수 없는 연결 링크예요(대상 아이를 알 수 없어요).");
     if (typeof o.t !== "string" || !/^[A-Za-z0-9_]{20,300}$/.test(o.t)) throw new Error("연결 링크에 열쇠가 없거나 형식이 달라요.");
     var expires = null;
     if (o.x !== undefined && o.x !== null) {
       if (typeof o.x !== "string" || isNaN(Date.parse(o.x))) throw new Error("연결 링크의 만료 정보가 이상해요.");
       expires = o.x;
     }
-    return { child: o.c, token: o.t, expires: expires };
+    return { child: hasChild ? o.c : null, token: o.t, expires: expires };
   }
 
   function daysLeft(conn) {
@@ -142,6 +144,7 @@
 
   // 새 연결 링크로 처음 연결한다. 받기에 성공해야 열쇠를 저장한다.
   function connect(parsed) {
+    if (!CHILD_FILE[parsed.child]) return Promise.resolve(result("error", "어느 아이 용으로 연결할지 골라 주세요."));
     var old = WT.store.getConnection();
     var oldSynced = WT.store.syncedState();
     var conn = { child: parsed.child, token: parsed.token, expires: parsed.expires, etag: null, connectedAt: new Date(nowMs()).toISOString() };

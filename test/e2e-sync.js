@@ -190,6 +190,38 @@ var MOCK = "(function(){" +
   check(/10일 뒤에 만료/.test(await T("#syncExpiry")), "만료 30일 안이면 남은 날짜를 안내함: " + (await T("#syncExpiry")).trim());
   await shot("s7_만료임박");
 
+  // 13) 아이 코드가 없는 공용 링크: 기기에서 아이를 고른다 (이 시점에는 아이 A 로 연결돼 있음)
+  var shared = enc({ v: 1, t: TOKEN, x: "2027-11-16T15:00:00Z" });
+  await ev("sessionStorage.setItem('calls','[]')");
+  await open("#connect=" + shared);
+  check(!(await H("#connectBox")) && !(await H("#connectPick")) && (await H("#btnConnectOk")) && /골라 주세요/.test(await T("#connectText")), "공용 링크를 열면 아이를 고르는 화면이 뜸");
+  check(/아이 A/.test(await T("#btnPickA")) && /아이 B/.test(await T("#btnPickB")), "고르는 버튼에 「아이 A」「아이 B」가 적혀 있음");
+  check((await ev("location.hash")) === "" && (await ev("window.__calls().length")) === 0, "고르기 전에는 주소에서 열쇠가 지워지고 요청도 보내지 않음");
+  await shot("s8_아이고르기");
+  await ev("document.getElementById('btnPickB').click()");
+  var askB = await T("#connectText");
+  check(/아이 B 용으로 연결할까요/.test(askB) && /⚠.*아이 A/.test(askB) && !(await H("#btnConnectOk")) && (await T("#btnConnectCancel")) === "뒤로", "아이 B 를 고르면 확인 문구와 「아이 A 단원이 지워진다」 경고가 뜸");
+  await ev("document.getElementById('btnConnectCancel').click()");
+  check(!(await H("#connectBox")) && !(await H("#connectPick")) && (await H("#btnConnectOk")), "「뒤로」를 누르면 아이 고르기로 돌아감(링크를 다시 열 필요 없음)");
+  // 아이 A 묶음이 오는 가짜 서버에 아이 B 로 연결 시도 → 거부되고 이전 연결 유지
+  await ev("document.getElementById('btnPickB').click(); document.getElementById('btnConnectOk').click()");
+  await sleep(700);
+  check(!(await H("#connectBox")) && /아이 A 것인데/.test(await T("#connectMsg")), "고른 아이와 묶음 주인이 다르면 거부하고 이유를 보여 줌");
+  check((await ev("WT.store.getConnection().child")) === "A" && /단어 Lesson 8/.test(await T("#lessonList")), "거부되면 이전 연결(아이 A)과 단원이 그대로 남음");
+  await ev("document.getElementById('btnConnectCancel').click(); document.getElementById('btnConnectCancel').click()");
+  check(await H("#connectBox"), "뒤로, 취소를 차례로 누르면 화면이 닫힘");
+  // 연결을 끊은 새 기기에서 아이 A 를 골라 연결
+  await ev("WT.sync.disconnect()");
+  await open("#connect=" + shared);
+  await ev("document.getElementById('btnPickA').click()");
+  check(!/⚠/.test(await T("#connectText")), "연결이 없는 기기에서는 경고가 없음");
+  await ev("document.getElementById('btnConnectOk').click()");
+  await sleep(800);
+  var calls13 = await ev("window.__calls()");
+  check(await H("#connectBox") && /연결했어요\. 단원 3개/.test(await T("#syncMsg")) && /A\.json$/.test(calls13[calls13.length - 1].url), "연결이 없는 기기에서 아이 A 를 고르면 A.json 을 받아 연결됨");
+  check((await ev("WT.store.getConnection().child")) === "A" && (await ev("localStorage.getItem('wp.connection.v1')")).indexOf('"child":"A"') > 0, "고른 아이가 연결 정보에 저장됨");
+  await shot("s9_공용링크연결");
+
   ws.close();
   proc.kill();
   console.log(fails === 0 ? "연결 화면 점검 모두 통과" : "실패 " + fails + "건");
