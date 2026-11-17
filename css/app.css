@@ -105,5 +105,12 @@ button.opt.used{text-decoration:line-through;opacity:.55}
 .solveend button{min-width:200px;min-height:52px;font-size:18px}
 .recent{color:var(--sub);font-size:13px}
 #kbdTest{width:100%;max-width:320px}
+/* 확인 표 고칠 곳 */
+.fixable{cursor:pointer;outline:1px dashed var(--amber);outline-offset:-3px}
+.fixable:hover{background:var(--amber-bg)}
+.fixed del{color:var(--sub)}
+.fixed .after{color:var(--warn);font-weight:700}
+.fixbox{margin-top:12px}
+textarea.fixtext{display:block;width:100%;margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:13px/1.5 ui-monospace,Consolas,"Malgun Gothic",monospace}
 [hidden]{display:none !important}
 @media (max-width:520px){ main{padding:12px} .card{padding:14px} }

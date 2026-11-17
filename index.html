@@ -162,6 +162,16 @@
       <button type="button" id="btnWipe" class="danger">직접 가져온 단원 모두 지우기</button>
     </div>
     <div class="card">
+      <h2>고칠 곳 목록</h2>
+      <p class="hint" id="fixCount"></p>
+      <textarea id="fixText" class="fixtext" rows="6" readonly hidden></textarea>
+      <div class="row" style="margin-top:8px">
+        <button type="button" id="btnFixCopy" class="primary">수정 목록 복사</button>
+        <button type="button" id="btnFixClear" class="danger">목록 모두 지우기</button>
+      </div>
+      <div id="fixMsg" role="status" aria-live="polite"></div>
+    </div>
+    <div class="card">
       <h2>키보드 확인 (태블릿에서 풀기 전에)</h2>
       <p class="hint">아래 칸에 <b>american</b> 이라고 소문자로 써 보세요. 키보드가 첫 글자를 대문자로 바꾸거나 단어를 고치면, 정답을 써도 틀린 것으로 채점돼요.</p>
       <input type="text" id="kbdTest" class="ans" lang="en" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="american">

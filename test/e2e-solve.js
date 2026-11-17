@@ -70,7 +70,7 @@ var C = load(/^A_chunk.*L07-08/);
   function fillAll(opt) {
     return ev("(function(o){var cur=WT.solve._current();var q=cur.quiz;q.items.forEach(function(it,i){" +
       "var card=document.querySelector('#solveBody .qcard[data-i=\"'+i+'\"]');var skip=(o.skip||[]).indexOf(i)>=0;if(skip)return;var bad=(o.wrong||{})[i];" +
-      "if(it.type==='mcq'){var k=bad==='other'?(it.answer+1)%it.options.length:it.answer;card.querySelector('button.opt[data-k=\"'+k+'\"]').click();return;}" +
+      "if(it.type==='mcq'){var k=(typeof bad==='string'&&bad.indexOf('swap')===0)?q.items[Number(bad.slice(4))].answer:it.answer;card.querySelector('button.opt[data-k=\"'+k+'\"]').click();return;}" +
       "var ins=card.querySelectorAll('input.ans');" +
       "ins.forEach(function(inp,k){var v=it.answers[k];if(bad&&k===0){v=bad==='cap'?(v.charAt(0).toUpperCase()===v.charAt(0)?v.toLowerCase():v.charAt(0).toUpperCase()+v.slice(1)):(bad==='drop'?v.slice(0,-1):bad);}inp.value=v;inp.dispatchEvent(new Event('input',{bubbles:true}));});" +
       "});return q.items.length})(" + JSON.stringify(opt || {}) + ")");
@@ -124,17 +124,17 @@ var C = load(/^A_chunk.*L07-08/);
   check((await ev("document.querySelector('#solveBody .qcard[data-i=\"1\"] input.ans').value")) === "keep" && /불러왔어요/.test(await T("#solveTop")), "같은 시험지(같은 번호)를 다시 열면 새로 고침 뒤에도 풀던 답을 이어서 불러옴");
 
   // 3) 채점: 쓰기 1개 대소문자 틀림, 보기 번호 1개 틀림 → 80점
-  await fillAll({ wrong: { 1: "cap", 7: "other" } });
+  // 보기 번호 7·8번은 서로의 답을 고른다(보기는 한 번씩만 쓰므로, 시험지 번호와 상관없이 항상 둘 다 틀린 결과가 된다).
+  await fillAll({ wrong: { 1: "cap", 7: "swap8", 8: "swap7" } });
   await shot("v2_다씀");
   await ev("document.getElementById('btnSolveGrade').click()");
   await sleep(300);
   var top = await T("#solveTop");
-  check(/80 \/ 100점/.test(top) && /맞힌 문항 8 \/ 10/.test(top), "채점: 80 / 100점, 맞힌 문항 8 / 10");
-  check((await ev("document.querySelectorAll('#solveBody .mark.o').length")) === 8 && (await ev("document.querySelectorAll('#solveBody .mark.x').length")) === 2, "맞힌 문항 8개에 빨간 동그라미, 틀린 문항 2개에 ✕");
+  check(/70 \/ 100점/.test(top) && /맞힌 문항 7 \/ 10/.test(top), "채점: 70 / 100점, 맞힌 문항 7 / 10");
+  check((await ev("document.querySelectorAll('#solveBody .mark.o').length")) === 7 && (await ev("document.querySelectorAll('#solveBody .mark.x').length")) === 3, "맞힌 문항 7개에 빨간 동그라미, 틀린 문항 3개에 ✕");
   var fix = await ev("document.querySelector('#solveBody .qcard[data-i=\"1\"] .qfix').innerText");
   check(/내 답/.test(fix) && /정답/.test(fix) && /대소문자가 달라요/.test(fix), "틀린 쓰기 문항에 내 답, 정답, 이유(대소문자)가 나옴");
-  // 보기는 한 번씩만 쓰므로, 7번에서 틀리게 고른 번호를 뒤 문항이 가져가면 7번은 「안 고름」이 된다(종이 시험지의 취소선과 같은 규칙).
-  check(/다른 번호를 골랐어요|답을 쓰지 않았어요/.test(await ev("document.querySelector('#solveBody .qcard[data-i=\"7\"] .qfix').innerText")), "틀린 보기 번호 문항에 이유가 나옴");
+  check(/다른 번호를 골랐어요/.test(await ev("document.querySelector('#solveBody .qcard[data-i=\"7\"] .qfix').innerText")), "틀린 보기 번호 문항에 이유가 나옴");
   check(/약한 목록에 넣었어요/.test(top), "틀린 단어를 약한 목록에 넣었다고 알려 줌");
   check(await ev("Array.from(document.querySelectorAll('#solveBody input.ans')).every(function(i){return i.readOnly})"), "채점 뒤에는 답을 고칠 수 없음");
   check((await ev("localStorage.getItem('wp.draft.v1')")) === null, "채점하면 풀던 답 임시 저장을 지움");
@@ -143,14 +143,14 @@ var C = load(/^A_chunk.*L07-08/);
   // 4) 틀린 문항만 다시 풀기(연습, 기록 안 함)
   await ev("Array.from(document.querySelectorAll('#solveTop button')).filter(function(b){return b.textContent==='틀린 문항만 다시 풀기'})[0].click()");
   await sleep(200);
-  check((await ev("document.querySelectorAll('#solveBody .qcard').length")) === 2 && /다시 풀기/.test(await T("#solveTitle")), "틀린 2문항만 다시 풀 수 있음");
+  check((await ev("document.querySelectorAll('#solveBody .qcard').length")) === 3 && /다시 풀기/.test(await T("#solveTitle")), "틀린 3문항만 다시 풀 수 있음");
   await fillAll({});
   await ev("document.getElementById('btnSolveGrade').click()");
-  check(/20 \/ 20점/.test(await T("#solveTop")) && /기록과 약한 목록에는 넣지 않았어요/.test(await T("#solveTop")), "다시 풀기는 연습이라 기록과 약한 목록에 넣지 않는다고 알려 줌");
+  check(/30 \/ 30점/.test(await T("#solveTop")) && /기록과 약한 목록에는 넣지 않았어요/.test(await T("#solveTop")), "다시 풀기는 연습이라 기록과 약한 목록에 넣지 않는다고 알려 줌");
   await ev("Array.from(document.querySelectorAll('#solveTop button')).filter(function(b){return b.textContent==='닫기'})[0].click()");
   await ev("document.querySelector('#tabs button[data-tab=lessons]').click()");
   var card = await cardText(wTitle);
-  check(/틀린 항목 2개/.test(card) && /최근 점수: 80\/100/.test(card), "단원 카드에 「틀린 항목 2개」와 「최근 점수: 80/100」이 보임");
+  check(/틀린 항목 3개/.test(card) && /최근 점수: 70\/100/.test(card), "단원 카드에 「틀린 항목 3개」와 「최근 점수: 70/100」이 보임");
 
   // 5) 약한 단어만 재시험을 연속 2번 맞히면 약한 목록에서 빠짐
   for (var round = 1; round <= 2; round++) {
@@ -163,7 +163,7 @@ var C = load(/^A_chunk.*L07-08/);
     await fillAll({});
     await ev("document.getElementById('btnSolveGrade').click()");
     var t2 = await T("#solveTop");
-    if (round === 1) check(n === 2 && /한 번 더 맞히면 빠져요/.test(t2), "약한 단어 재시험(2문항)을 다 맞히면 「한 번 더 맞히면 빠져요」");
+    if (round === 1) check(n === 3 && /한 번 더 맞히면 빠져요/.test(t2), "약한 단어 재시험(3문항)을 다 맞히면 「한 번 더 맞히면 빠져요」");
     else check(/연속 2번 맞혀서 약한 목록에서 뺐어요/.test(t2), "두 번째로 다 맞히면 약한 목록에서 뺐다고 알려 줌");
     await ev("Array.from(document.querySelectorAll('#solveTop button')).filter(function(b){return b.textContent==='닫기'})[0].click()");
     await ev("document.querySelector('#tabs button[data-tab=lessons]').click()");

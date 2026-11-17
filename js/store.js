@@ -9,6 +9,7 @@
   var KEY_SYNCED = "wp.synced.v2";
   var KEY_CONN = "wp.connection.v1";
   var KEY_WEAK = "wp.weak.v1"; // 틀린 단어 표시: { 단원 id: { 항목 키: { at: 표시한 시각, ok: 표시 뒤 연속으로 맞힌 횟수 } } }. 단원 데이터와 따로 저장해서 새 단원을 받아도 남는다.
+  var KEY_FIXES = "wp.fixes.v1"; // 확인 표에서 적어 둔 고칠 곳(앱의 단원은 바꾸지 않음)
   var KEY_RESULTS = "wp.results.v1"; // 화면에서 푼 시험 기록(최근 것부터 최대 MAX_RESULTS 개)
   var MAX_RESULTS = 300;
   var CLEAR_AFTER = 2; // 약한 항목을 화면 시험에서 연속으로 이만큼 맞히면 약한 목록에서 뺀다
@@ -210,6 +211,72 @@
     return res;
   }
 
+  // ---------------------------------------------------------------- 확인 표의 고칠 곳 목록
+  // 앱의 단원은 바꾸지 않고, 부모님이 원본(PC 의 단원 데이터)을 고칠 수 있게 「어디를 무엇으로」만 모아 둔다.
+  // 항목: { id: 단원 id, label: 단원 이름, owner, path: ["words", 2, "ko"] 같은 위치, where: 사람이 읽는 위치, before, after, at }
+  function fixesAll() {
+    var r = parse(read(KEY_FIXES), []);
+    return Array.isArray(r) ? r.filter(function (f) { return isObj(f) && typeof f.id === "string" && Array.isArray(f.path); }) : [];
+  }
+  function saveFixes(arr) { write(KEY_FIXES, JSON.stringify(arr)); }
+  function samePath(a, b) { return a.length === b.length && a.every(function (x, i) { return x === b[i]; }); }
+  function valueAt(data, path) {
+    var v = data;
+    for (var i = 0; i < path.length; i++) { if (v === null || v === undefined) return undefined; v = v[path[i]]; }
+    return v;
+  }
+  // 같은 칸을 다시 적으면 바꾼다. after 가 비었거나 원래 내용과 같으면 그 칸의 고칠 곳을 지운다.
+  function setFix(fix) {
+    var arr = fixesAll().filter(function (f) { return !(f.id === fix.id && samePath(f.path, fix.path)); });
+    var after = String(fix.after === undefined || fix.after === null ? "" : fix.after).trim();
+    if (after && after !== String(fix.before)) arr.push(Object.assign({}, fix, { after: after, at: new Date().toISOString() }));
+    saveFixes(arr);
+  }
+  function fixesFor(id) { return fixesAll().filter(function (f) { return f.id === id; }); }
+  function fixAt(id, path) { return fixesAll().filter(function (f) { return f.id === id && samePath(f.path, path); })[0] || null; }
+  function clearFixes(id) { saveFixes(id ? fixesAll().filter(function (f) { return f.id !== id; }) : []); }
+  // 원본이 고쳐져 새로 받은 단원의 그 칸이 적어 둔 내용과 같아지면 목록에서 뺀다. 뺀 개수를 돌려준다.
+  function pruneFixes() {
+    var lessons = {};
+    list().forEach(function (x) { lessons[x.id] = x.data; });
+    var arr = fixesAll();
+    var keep = arr.filter(function (f) { return !(lessons[f.id] && String(valueAt(lessons[f.id], f.path)) === f.after); });
+    if (keep.length !== arr.length) saveFixes(keep);
+    return arr.length - keep.length;
+  }
+  // 저에게(또는 부모님 작업실에) 붙여 넣을 글. 아이 이름은 넣지 않는다.
+  function fixesText() {
+    var arr = fixesAll();
+    if (!arr.length) return "";
+    var groups = [];
+    arr.forEach(function (f) {
+      var g = groups.filter(function (x) { return x.id === f.id; })[0];
+      if (!g) { g = { id: f.id, label: f.label, owner: f.owner, items: [] }; groups.push(g); }
+      g.items.push(f);
+    });
+    var lines = ["[단어 연습 앱 · 확인 표 고칠 곳 " + arr.length + "개] " + new Date().toISOString().slice(0, 10)];
+    groups.forEach(function (g, i) {
+      lines.push("");
+      lines.push((i + 1) + ") " + (g.owner || "") + " · " + g.label);
+      lines.push("   단원 id: " + g.id);
+      g.items.forEach(function (f) { lines.push("   - " + f.where + ": 「" + f.before + "」 → 「" + f.after + "」"); });
+    });
+    return lines.join("\n");
+  }
+  function mergeFixes(incoming) {
+    if (!Array.isArray(incoming)) return 0;
+    var arr = fixesAll();
+    var n = 0;
+    incoming.forEach(function (f) {
+      if (!isObj(f) || typeof f.id !== "string" || !Array.isArray(f.path) || typeof f.after !== "string") return;
+      if (arr.some(function (x) { return x.id === f.id && samePath(x.path, f.path); })) return;
+      arr.push(f);
+      n++;
+    });
+    if (n) saveFixes(arr);
+    return n;
+  }
+
   // ---------------------------------------------------------------- 화면 시험 기록
   function resultsAll() {
     var r = parse(read(KEY_RESULTS), []);
@@ -273,7 +340,7 @@
 
   // 붙여 넣은 글이나 파일 내용을 가져온다. 단원 하나, 단원 목록, 백업 파일 모두 받는다.
   function importText(text, label) {
-    var res = { added: [], updated: [], errors: [], settingsRestored: false, weakRestored: 0, resultsRestored: 0 };
+    var res = { added: [], updated: [], errors: [], settingsRestored: false, weakRestored: 0, resultsRestored: 0, fixesRestored: 0 };
     var obj;
     try { obj = JSON.parse(text); }
     catch (e) { res.errors.push((label || "입력") + ": JSON 형식이 아닙니다(" + e.message + ")"); return res; }
@@ -284,6 +351,7 @@
       if (obj.settings) { saveSettings(Object.assign(settings(), obj.settings)); res.settingsRestored = true; }
       if (isObj(obj.weak)) res.weakRestored = mergeWeak(obj.weak);
       if (Array.isArray(obj.results)) res.resultsRestored = mergeResults(obj.results);
+      if (Array.isArray(obj.fixes)) res.fixesRestored = mergeFixes(obj.fixes);
     } else items = [obj];
     items.forEach(function (raw, i) {
       var name = (label || "입력") + (items.length > 1 ? " #" + (i + 1) : "");
@@ -316,7 +384,7 @@
   function exportAll() {
     return JSON.stringify({
       app: "word-practice", version: 1, exportedAt: new Date().toISOString(),
-      settings: settings(), weak: weakAll(), results: resultsAll(), lessons: manualList().map(function (x) { return x.data; })
+      settings: settings(), weak: weakAll(), results: resultsAll(), fixes: fixesAll(), lessons: manualList().map(function (x) { return x.data; })
     }, null, 1);
   }
 
@@ -325,6 +393,7 @@
     importText: importText, exportAll: exportAll, isPersistent: function () { return persistent; },
     weakItems: weakItems, isWeak: isWeak, setWeak: setWeak, clearWeak: clearWeak, weakCount: weakCount, withWeak: withWeak,
     applyGrading: applyGrading, addResult: addResult, resultsFor: resultsFor, CLEAR_AFTER: CLEAR_AFTER,
+    setFix: setFix, fixesFor: fixesFor, fixAt: fixAt, fixesAll: fixesAll, clearFixes: clearFixes, pruneFixes: pruneFixes, fixesText: fixesText, valueAt: valueAt,
     lessonId: lessonId, syncedState: syncedState, setSynced: setSynced, clearSynced: clearSynced,
     syncedSnapshot: syncedSnapshot, restoreSynced: restoreSynced, setActive: setActive,
     getConnection: getConnection, saveConnection: saveConnection, clearConnection: clearConnection

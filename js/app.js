@@ -63,6 +63,7 @@
   function renderLessons() {
     var box = $("lessonList");
     clear(box);
+    WT.store.pruneFixes(); // 원본이 고쳐져 새로 받은 단원에 반영된 고칠 곳은 목록에서 뺀다
     var items = WT.store.list();
     var mc = multiChild();
     // 두 아이를 함께 연결한 기기에서는 지금 보는 아이의 단원만 보여 준다.
@@ -93,7 +94,8 @@
           el("span", { text: title }),
           el("span", { "class": "badge " + (verified ? "ok" : "warn"), text: verified ? "교재 대조 완료" : "교재 대조 전" })
         ].concat(it.synced ? [el("span", { "class": "badge kind", text: "부모님이 올림" })] : [])
-          .concat(weakN ? [el("span", { "class": "badge warn", text: "틀린 항목 " + weakN + "개" })] : [])),
+          .concat(weakN ? [el("span", { "class": "badge warn", text: "틀린 항목 " + weakN + "개" })] : [])
+          .concat(WT.store.fixesFor(it.id).length ? [el("span", { "class": "badge kind", text: "고칠 곳 " + WT.store.fixesFor(it.id).length + "개" })] : [])),
         el("div", { "class": "meta", text: meta }),
         recentLine(it),
         el("div", { "class": "row" }, [
@@ -403,21 +405,86 @@
   }
 
   // ---------------------------------------------------------------- 확인 표
-  function openCheck(id) {
+  // 확인 표의 「고칠 곳 적기」: 칸을 누르면 바른 내용을 적어 둔다. 앱의 단원은 바꾸지 않고, 목록을 복사해 원본을 고치는 데 쓴다.
+  var checkFixMode = false;
+
+  function copyText(text, out, container) {
+    function fallback() {
+      var ta = el("textarea", { "class": "fixtext", rows: "6", readonly: "readonly" });
+      ta.value = text;
+      if (container) { container.appendChild(ta); ta.focus(); ta.select(); }
+      msg(out, "warn", "자동으로 복사하지 못했어요. " + (container ? "아래 칸의 글을 길게 눌러 모두 선택한 뒤 복사해 주세요." : "설정의 「고칠 곳 목록」 칸에서 복사해 주세요."));
+    }
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(function () { msg(out, "ok", "복사했어요. 대화창에 붙여 넣어 보내 주세요. 원본을 고쳐 다시 올리면 이 목록에서 저절로 빠져요."); }, fallback);
+      } else fallback();
+    } catch (e) { fallback(); }
+  }
+
+  function openCheck(id, keepScroll) {
     var it = find(id);
     if (!it) return;
+    var scroll = $("dlg").scrollTop;
+    var raw = it.data;
     var body = $("dlgBody");
     clear(body);
     var box = el("div");
+    var label = lessonTitle(it);
+    // 고칠 수 있는 칸. path 는 단원 데이터 안의 위치(예: ["words", 2, "ko"]).
+    function fixNode(tag, path, where, opt) {
+      opt = opt || {};
+      var cur = WT.store.valueAt(raw, path);
+      var curText = cur === undefined || cur === null ? "" : String(cur);
+      var f = WT.store.fixAt(id, path);
+      var n = el(tag, opt.cls ? { "class": opt.cls } : {});
+      if (opt.prefix) n.appendChild(document.createTextNode(opt.prefix));
+      if (f) {
+        n.classList.add("fixed");
+        n.appendChild(el("del", { text: WT.util.plain(curText) || "(비어 있음)" }));
+        n.appendChild(el("span", { "class": "after", text: " → " + f.after }));
+      } else {
+        n.appendChild(document.createTextNode(WT.util.plain(curText) || opt.empty || ""));
+      }
+      if (checkFixMode) {
+        n.classList.add("fixable");
+        n.addEventListener("click", function () {
+          var v = window.prompt(where + "\n지금: " + (curText || "(비어 있음)") + "\n\n바른 내용을 적어 주세요. 비우고 확인하면 적어 둔 것을 지워요.", f ? f.after : curText);
+          if (v === null) return;
+          WT.store.setFix({ id: id, label: label, owner: raw.owner, path: path, where: where, before: curText, after: v });
+          openCheck(id, true);
+          renderLessons();
+          renderFixCard();
+        });
+      }
+      return n;
+    }
+    box.appendChild(el("div", { "class": "row" }, [
+      el("button", { type: "button", "class": checkFixMode ? "primary" : "", text: checkFixMode ? "고칠 곳 적기 끝내기" : "고칠 곳 적기", onclick: function () { checkFixMode = !checkFixMode; openCheck(id, true); } })
+    ]));
+    if (checkFixMode) {
+      box.appendChild(el("p", { "class": "msg warn", text: "고칠 칸을 누르면 바른 내용을 적을 수 있어요. 앱의 단원은 바뀌지 않아요. 다 적으면 아래 「수정 목록 복사」로 부모님 작업실에 보내 주세요." + (it.kind === "chunk" ? "\nchunk 문장과 콜로케이션은 빈칸이 될 부분을 { } 로 감싸 주세요." : "") }));
+    }
     if (it.kind === "word") {
       var t = WT.word.checkTable(WT.word.load(it.data));
       $("dlgTitle").textContent = "확인 표 · " + ownerLabel(t.owner) + " · " + t.title;
       box.appendChild(el("p", { "class": "hint", text: "문장 출처 규칙: " + sourcesText(t.sources) + " · 해석 필수: " + (t.requireKo ? "예" : "아니오") + " · 교재 대조: " + (t.verified ? "완료" : "아직 안 됨") }));
       var tbl = el("table", { "class": "ct" }, [el("tr", {}, ["#", "단어", "품사", "한글 뜻", "쪽", "영문 뜻 · 연습 페이지 문장"].map(function (h) { return el("th", { text: h }); }))]);
-      t.rows.forEach(function (r) {
-        var last = el("td", {}, [el("div", { text: r.en })]);
-        r.practice.forEach(function (p) { last.appendChild(el("div", { "class": "hint", text: "연습 " + (p.ref || "?") + "번: " + p.text })); });
-        tbl.appendChild(el("tr", {}, [el("td", { text: String(r.no || "") }), el("td", { text: r.word }), el("td", { text: r.pos }), el("td", { text: r.ko }), el("td", { text: String(r.page || "") }), last]));
+      raw.words.forEach(function (w, i) {
+        var nm = "단어 " + w.word;
+        var last = el("td", {}, [fixNode("div", ["words", i, "en"], nm + " · 영문 뜻")]);
+        (w.sentences || []).forEach(function (x, j) {
+          if (x.source !== "practice") return;
+          last.appendChild(fixNode("div", ["words", i, "sentences", j, "text"], nm + " · 연습 " + (x.ref || "?") + "번 문장", { cls: "hint", prefix: "연습 " + (x.ref || "?") + "번: " }));
+        });
+        tbl.appendChild(el("tr", {}, [
+          el("td", { text: String(w.no || "") }),
+          fixNode("td", ["words", i, "word"], nm + " · 철자"),
+          fixNode("td", ["words", i, "pos"], nm + " · 품사"),
+          fixNode("td", ["words", i, "ko"], nm + " · 한글 뜻"),
+          el("td", { text: String(w.page || "") }),
+          last
+        ]));
       });
       box.appendChild(tbl);
       box.appendChild(el("p", { "class": "hint", text: "연습 페이지에 문장이 없는 단어(쓰기 문항으로만 나옴): " + (t.noPractice.join(", ") || "없음") }));
@@ -427,18 +494,57 @@
       $("dlgTitle").textContent = "확인 표 · " + ownerLabel(c.owner) + " · " + c.title;
       box.appendChild(el("p", { "class": "hint", text: "Fill in 힌트: " + (c.hint === "first" ? "첫 글자 있음" : "없음") + " · 교재 대조: " + (c.verified ? "완료" : "아직 안 됨") }));
       var vt = el("table", { "class": "ct" }, [el("tr", {}, ["단원", "단어", "콜로케이션", "한글 뜻"].map(function (h) { return el("th", { text: h }); }))]);
-      c.vocab.forEach(function (v) {
-        vt.appendChild(el("tr", {}, [el("td", { text: "L" + v.lesson }), el("td", { text: v.word }), el("td", { text: v.colloc || "(콜로케이션 없음)" }), el("td", { text: v.ko })]));
+      (raw.vocab || []).forEach(function (v, i) {
+        var nm = "Key Vocabulary " + v.word;
+        vt.appendChild(el("tr", {}, [
+          el("td", { text: "L" + v.lesson }),
+          fixNode("td", ["vocab", i, "word"], nm + " · 단어"),
+          fixNode("td", ["vocab", i, "colloc"], nm + " · 콜로케이션", { empty: "(콜로케이션 없음)" }),
+          fixNode("td", ["vocab", i, "ko"], nm + " · 한글 뜻")
+        ]));
       });
       box.appendChild(vt);
       var ct = el("table", { "class": "ct", style: "margin-top:12px" }, [el("tr", {}, ["단원", "chunk 문장 (빈칸이 될 부분은 { })"].map(function (h) { return el("th", { text: h }); }))]);
-      c.chunks.forEach(function (x) { ct.appendChild(el("tr", {}, [el("td", { text: "L" + x.lesson }), el("td", { text: x.sentence })])); });
+      (raw.chunks || []).forEach(function (x, i) {
+        ct.appendChild(el("tr", {}, [el("td", { text: "L" + x.lesson }), fixNode("td", ["chunks", i, "sentence"], "chunk 문장 " + (i + 1) + "번(L" + x.lesson + ")")]));
+      });
       box.appendChild(ct);
       box.appendChild(el("p", { "class": "hint", text: "콜로케이션이 없어 Key Vocabulary에서 빠지는 단어: " + (c.noColloc.join(", ") || "없음") }));
     }
-    box.appendChild(el("p", { "class": "hint", text: "※ 영문 뜻, 한글 뜻, 문장을 교재와 한 글자씩 대조해 주세요." }));
+    box.appendChild(el("p", { "class": "hint", text: "※ 영문 뜻, 한글 뜻, 문장을 교재와 한 글자씩 대조해 주세요. 틀린 곳은 「고칠 곳 적기」로 적어 두세요." }));
+    // 이 단원에서 적은 고칠 곳과 복사
+    var mine = WT.store.fixesFor(id).length, allN = WT.store.fixesAll().length;
+    if (allN) {
+      var out = el("div", { role: "status" });
+      var fixBox = el("div", { "class": "card fixbox" }, [
+        el("b", { text: "이 단원에서 적은 고칠 곳 " + mine + "개" + (allN !== mine ? " (전체 " + allN + "개)" : "") }),
+        el("div", { "class": "row", style: "margin-top:8px" }, [
+          el("button", { type: "button", "class": "primary", text: "수정 목록 복사", onclick: function () { copyText(WT.store.fixesText(), out, fixBox); } }),
+          mine ? el("button", { type: "button", text: "이 단원 목록 지우기", onclick: function () {
+            if (!window.confirm("이 단원에서 적은 고칠 곳 " + mine + "개를 지울까요?")) return;
+            WT.store.clearFixes(id);
+            openCheck(id, true);
+            renderLessons();
+            renderFixCard();
+          } }) : null
+        ]),
+        out
+      ]);
+      box.appendChild(fixBox);
+    }
     body.appendChild(box);
     $("dlg").hidden = false;
+    if (keepScroll) $("dlg").scrollTop = scroll;
+  }
+
+  // 설정의 「고칠 곳 목록」 칸
+  function renderFixCard() {
+    var n = WT.store.fixesAll().length;
+    $("fixCount").textContent = n ? "적어 둔 고칠 곳이 " + n + "개 있어요. 복사해서 부모님 작업실에 보내 주세요." : "적어 둔 고칠 곳이 없어요. 단원의 「확인 표」에서 「고칠 곳 적기」를 눌러 적을 수 있어요.";
+    $("fixText").value = WT.store.fixesText();
+    $("fixText").hidden = !n;
+    $("btnFixCopy").disabled = !n;
+    $("btnFixClear").disabled = !n;
   }
 
   // ---------------------------------------------------------------- 틀린 단어 표시(약한 단어)
@@ -745,6 +851,15 @@
     $("btnSolve").addEventListener("click", openSolve);
     WT.solve.bind();
     $("kbdTest").addEventListener("input", checkKeyboard);
+    $("btnFixCopy").addEventListener("click", function () { copyText(WT.store.fixesText(), $("fixMsg"), null); $("fixText").hidden = false; });
+    $("btnFixClear").addEventListener("click", function () {
+      var n = WT.store.fixesAll().length;
+      if (!n || !window.confirm("적어 둔 고칠 곳 " + n + "개를 모두 지울까요? 부모님께 보냈는지 먼저 확인해 주세요.")) return;
+      WT.store.clearFixes();
+      msg($("fixMsg"), "ok", "지웠어요.");
+      renderLessons();
+      renderFixCard();
+    });
     // 번호를 입력하면 그 번호의 시험지를 다시 만든다
     $("optSeed").addEventListener("change", generate);
     ["wMode", "wParts", "wWeak", "cMode", "cHint", "cWeak", "optKey"].forEach(function (id) {
@@ -799,6 +914,7 @@
     initSettings();
     renderSync();
     renderLessons();
+    renderFixCard();
     // 연결 링크로 열었으면 확인 화면을 먼저 보여 주고, 이미 연결된 기기는 새 단원이 있는지 저절로 확인한다.
     if (!handleConnectLink()) runSync(false);
     if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {

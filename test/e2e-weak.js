@@ -155,6 +155,39 @@ var C = load(/^A_chunk.*L07-08/);
   var backup = await ev("WT.store.exportAll()");
   check(JSON.parse(backup).weak && Object.keys(JSON.parse(backup).weak).length === 1, "백업 파일에 틀린 표시가 들어감");
 
+  // 7) 확인 표의 「고칠 곳 적기」
+  await clickCard(wTitle, "확인 표");
+  check(!(await H("#dlg")) && (await ev("document.querySelectorAll('#dlgBody .fixable').length")) === 0, "확인 표를 열면 처음에는 고칠 칸이 표시되지 않음");
+  await ev("Array.from(document.querySelectorAll('#dlgBody button')).filter(function(b){return b.textContent==='고칠 곳 적기'})[0].click()");
+  var nFix = await ev("document.querySelectorAll('#dlgBody .fixable').length");
+  check(nFix >= W.words.length * 4, "「고칠 곳 적기」를 누르면 단어·품사·한글 뜻·영문 뜻·문장 칸을 고칠 수 있게 표시됨(" + nFix + "칸)");
+  // 1행의 한글 뜻 칸(4번째 칸)을 눌러 바른 내용을 적는다
+  await ev("window.prompt=function(){return '고친 뜻'}; document.querySelectorAll('#dlgBody table.ct tr')[1].children[3].click()");
+  var row1 = await ev("document.querySelectorAll('#dlgBody table.ct tr')[1].children[3].innerText");
+  check(/→ 고친 뜻/.test(row1) && (await ev("!!document.querySelector('#dlgBody table.ct tr:nth-child(2) td.fixed del')")), "적은 칸에 지금 내용(취소선)과 「→ 고친 뜻」이 보임");
+  check(/이 단원에서 적은 고칠 곳 1개/.test(await T("#dlgBody")), "확인 표 아래에 「이 단원에서 적은 고칠 곳 1개」가 나옴");
+  await shot("w5_고칠곳");
+  await ev("Array.from(document.querySelectorAll('#dlgBody button')).filter(function(b){return b.textContent==='수정 목록 복사'})[0].click()");
+  await sleep(300);
+  var copied = await ev("(document.querySelector('#dlgBody textarea.fixtext')||{}).value||''");
+  var bodyTxt = await T("#dlgBody");
+  check((/복사했어요/.test(bodyTxt)) || (/고친 뜻/.test(copied) && /자동으로 복사하지 못했어요/.test(bodyTxt)), "「수정 목록 복사」: 복사하거나, 복사가 막힌 환경이면 글을 칸에 띄워 직접 복사하게 함");
+  check(copied === "" || (copied.indexOf("아이 B · 단어 Lesson " + W.lesson) >= 0 && copied.indexOf("→ 「고친 뜻」") >= 0), "복사할 글에 단원과 「→ 고친 뜻」이 들어 있음");
+  check((await ev("WT.store.list().filter(function(x){return x.data.kind==='word'})[0].data.words[0].ko")) === W.words[0].ko, "고칠 곳을 적어도 앱의 단원(시험지에 쓰는 내용)은 바뀌지 않음");
+  await ev("document.getElementById('dlgClose').click()");
+  check(/고칠 곳 1개/.test(await cardText(wTitle)), "단원 카드에 「고칠 곳 1개」가 보임");
+  await ev("document.querySelector('#tabs button[data-tab=settings]').click()");
+  check(/고칠 곳이 1개/.test(await T("#fixCount")) && /고친 뜻/.test(await ev("document.getElementById('fixText').value")), "설정의 「고칠 곳 목록」에 개수와 글이 보임");
+  await shot("w6_설정_고칠곳");
+  // 같은 칸을 비우고 확인하면 지워짐
+  await ev("document.querySelector('#tabs button[data-tab=lessons]').click()");
+  await clickCard(wTitle, "확인 표");
+  await ev("window.prompt=function(){return ''}; document.querySelectorAll('#dlgBody table.ct tr')[1].children[3].click()");
+  check(!(await ev("!!document.querySelector('#dlgBody td.fixed')")) && !/이 단원에서 적은 고칠 곳/.test(await T("#dlgBody")), "같은 칸을 비우고 확인하면 적은 것이 지워짐");
+  await ev("window.prompt=function(){return null}; document.querySelectorAll('#dlgBody table.ct tr')[1].children[3].click()");
+  check((await ev("WT.store.fixesAll().length")) === 0, "적는 창에서 취소하면 아무것도 바뀌지 않음");
+  await ev("Array.from(document.querySelectorAll('#dlgBody button')).filter(function(b){return b.textContent==='고칠 곳 적기 끝내기'})[0].click(); document.getElementById('dlgClose').click()");
+
   ws.close();
   proc.kill();
   console.log(fails === 0 ? "틀린 단어 화면 점검 모두 통과" : "실패 " + fails + "건");
