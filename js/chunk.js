@@ -300,8 +300,22 @@
     return { n: n, bad: bad };
   }
 
+  // 약한 항목(weak: true)만 남긴 데이터. 범위 전체(full) 방식으로 낼 때 쓴다.
+  function onlyWeak(data) {
+    var d = Object.assign({}, data);
+    d.vocab = (data.vocab || []).filter(function (v) { return v.weak; });
+    d.chunks = (data.chunks || []).filter(function (c) { return c.weak; });
+    if (!d.vocab.length && !d.chunks.length) throw new Error("약한 항목(weak: true)이 없습니다. 먼저 틀린 단어와 chunk 를 표시하세요");
+    var usable = d.vocab.filter(function (v) { return v.colloc && v._answers.length; });
+    if (!usable.length && !d.chunks.length) {
+      throw new Error("약한 단어 " + d.vocab.length + "개에 콜로케이션이 없어서 시험에 낼 수 있는 항목이 없습니다: " + d.vocab.map(function (v) { return v.word; }).join(", "));
+    }
+    d.title = (data.title || "Chunk Quiz") + " · 약한 항목 재시험";
+    return d;
+  }
+
   WT.chunk = {
     CSS: CSS, KEEP_DEFAULT: KEEP_DEFAULT, load: load, makeSet: makeSet, validate: validate, build: build,
-    checkTable: checkTable, selftest: selftest, sheetNote: sheetNote
+    checkTable: checkTable, selftest: selftest, sheetNote: sheetNote, onlyWeak: onlyWeak
   };
 })(typeof window !== "undefined" ? window : globalThis);

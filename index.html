@@ -81,7 +81,7 @@
               <option value="B">Part B만 (문장 빈칸)</option>
             </select>
           </label>
-          <label class="check"><input type="checkbox" id="wWeak"> 약한 단어만 (틀린 단어 재시험)</label>
+          <label class="check"><input type="checkbox" id="wWeak"> <span id="wWeakText">약한 단어만 (틀린 단어 재시험)</span></label>
         </div>
         <div id="optsChunk" hidden>
           <label class="field">종류
@@ -93,6 +93,10 @@
           <label class="field">Fill in 첫 글자 힌트
             <select id="cHint"></select>
           </label>
+          <label class="check"><input type="checkbox" id="cWeak"> <span id="cWeakText">약한 항목만 (틀린 단어·chunk 재시험)</span></label>
+        </div>
+        <div class="row" style="margin-bottom:12px">
+          <button type="button" id="btnWeakEdit">틀린 단어 표시하기</button>
         </div>
         <details>
           <summary>더 설정하기</summary>
@@ -131,7 +135,7 @@
     </div>
     <div class="card">
       <h2>백업</h2>
-      <p class="hint">브라우저 데이터를 지우면 가져온 단원이 사라져요. 백업 파일을 만들어 두면 다시 넣을 수 있어요.</p>
+      <p class="hint">브라우저 데이터를 지우면 가져온 단원과 틀린 단어 표시가 사라져요. 백업 파일을 만들어 두면 다시 넣을 수 있어요. (부모님이 올려 준 단원은 백업에 들어가지 않고, 연결되어 있으면 저절로 다시 받아져요.)</p>
       <div class="row">
         <button type="button" id="btnExport">백업 파일 만들기</button>
         <label class="btn">백업 파일 가져오기<input type="file" id="backupIn" accept=".json,application/json" hidden></label>

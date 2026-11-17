@@ -72,16 +72,19 @@
       var meta = it.kind === "word"
         ? "단어 " + d.words.length + "개 · 문장 출처: " + sourcesText(d.sentence_sources) + " · 해석 필수: " + (d.require_sentence_ko ? "예" : "아니오")
         : "Key Vocabulary " + (d.vocab || []).length + "개 · chunk 문장 " + (d.chunks || []).length + "개 · Fill in 첫 글자 힌트: " + (d.hint === "first" ? "있음" : "없음");
+      var weakN = WT.store.weakCount(it);
       box.appendChild(el("div", { "class": "card lesson" }, [
         el("div", { "class": "head" }, [
           el("span", { text: ownerLabel(d.owner) }),
           el("span", { "class": "badge kind", text: it.kind === "word" ? "단어" : "chunk" }),
           el("span", { text: title }),
           el("span", { "class": "badge " + (verified ? "ok" : "warn"), text: verified ? "교재 대조 완료" : "교재 대조 전" })
-        ].concat(it.synced ? [el("span", { "class": "badge kind", text: "부모님이 올림" })] : [])),
+        ].concat(it.synced ? [el("span", { "class": "badge kind", text: "부모님이 올림" })] : [])
+          .concat(weakN ? [el("span", { "class": "badge warn", text: "틀린 항목 " + weakN + "개" })] : [])),
         el("div", { "class": "meta", text: meta }),
         el("div", { "class": "row" }, [
           el("button", { type: "button", "class": "primary", text: "시험지 만들기", onclick: function () { openMaker(it.id); } }),
+          el("button", { type: "button", text: "틀린 단어 표시", onclick: function () { openWeak(it.id); } }),
           el("button", { type: "button", text: "확인 표", onclick: function () { openCheck(it.id); } })
         ].concat(it.synced ? [] : [
           el("button", { type: "button", "class": "danger", text: "삭제", onclick: function () {
@@ -97,6 +100,7 @@
     if (res.added.length) parts.push("새로 넣음: " + res.added.length + "개");
     if (res.updated.length) parts.push("덮어씀: " + res.updated.length + "개");
     if (res.settingsRestored) parts.push("설정도 가져옴");
+    if (res.weakRestored) parts.push("틀린 단어 표시 " + res.weakRestored + "개도 가져옴");
     return parts.join(" · ");
   }
 
@@ -108,12 +112,13 @@
     if (text) jobs.push(Promise.resolve({ label: "붙여 넣은 내용", text: text }));
     if (!jobs.length) { msg(out, "warn", "파일을 고르거나 내용을 붙여 넣어 주세요."); return; }
     Promise.all(jobs).then(function (list) {
-      var total = { added: [], updated: [], errors: [], settingsRestored: false };
+      var total = { added: [], updated: [], errors: [], settingsRestored: false, weakRestored: 0 };
       list.forEach(function (j) {
         var r = WT.store.importText(j.text, j.label);
         total.added = total.added.concat(r.added);
         total.updated = total.updated.concat(r.updated);
         total.errors = total.errors.concat(r.errors);
+        total.weakRestored += r.weakRestored || 0;
         total.settingsRestored = total.settingsRestored || r.settingsRestored;
       });
       var ok = summarize(total);
@@ -329,6 +334,90 @@
     $("dlg").hidden = false;
   }
 
+  // ---------------------------------------------------------------- 틀린 단어 표시(약한 단어)
+  var weakDlgId = null;
+
+  function lessonTitle(it) {
+    var d = it.data;
+    return it.kind === "word" ? "단어 Lesson " + d.lesson + (d.title ? " " + d.title : "") : (d.title || "Chunk Quiz");
+  }
+
+  // 시험지 만들기 화면의 「약한 항목만」 칸을 지금 표시된 개수에 맞춘다.
+  function updateWeakControls() {
+    var it = find(state.lessonId);
+    if (!it) return;
+    var n = WT.store.weakCount(it);
+    var isWord = it.kind === "word";
+    var box = isWord ? $("wWeak") : $("cWeak");
+    var text = isWord ? $("wWeakText") : $("cWeakText");
+    box.disabled = n === 0;
+    if (n === 0) box.checked = false;
+    text.textContent = (isWord ? "약한 단어만 (틀린 단어 재시험)" : "약한 항목만 (틀린 단어·chunk 재시험)") + (n ? " · " + n + "개" : " · 표시한 것이 없어요");
+  }
+
+  // 틀린 단어를 고르는 화면. 누를 때마다 이 기기에 바로 저장한다.
+  function openWeak(id) {
+    var it = find(id);
+    if (!it) return;
+    weakDlgId = id;
+    var body = $("dlgBody");
+    clear(body);
+    $("dlgTitle").textContent = "틀린 단어 표시 · " + ownerLabel(it.data.owner) + " · " + lessonTitle(it);
+    body.appendChild(el("p", { "class": "hint", text: "시험에서 틀린 것을 눌러 표시해요. 표시한 것은 이 기기에 저장되고, 시험지 만들기에서 「약한 항목만」을 고르면 그것만으로 재시험지가 나와요. 다시 맞히게 되면 눌러서 표시를 지워요." }));
+    var counter = el("p", { "class": "msg warn" });
+    var clearBtn = el("button", { type: "button", text: "표시 모두 지우기", onclick: function () {
+      if (!window.confirm("이 단원에서 표시한 틀린 항목을 모두 지울까요?")) return;
+      WT.store.clearWeak(id);
+      openWeak(id);
+    } });
+    body.appendChild(el("div", { "class": "row" }, [clearBtn]));
+    body.appendChild(counter);
+    function refresh() {
+      var n = WT.store.weakCount(find(id));
+      counter.textContent = n ? "틀린 항목 " + n + "개를 표시했어요." : "표시한 것이 없어요.";
+      counter.hidden = false;
+    }
+    var group = null, list = null;
+    var items = WT.store.weakItems(it.data);
+    var groups = {};
+    items.forEach(function (x) { groups[x.group] = true; });
+    items.forEach(function (x) {
+      if (x.group !== group) {
+        group = x.group;
+        if (Object.keys(groups).length > 1) body.appendChild(el("div", { "class": "weakgroup", text: group }));
+        list = el("div", { "class": "weaklist" });
+        body.appendChild(list);
+      }
+      var cb = el("input", { type: "checkbox" });
+      cb.checked = x.base || WT.store.isWeak(id, x.key);
+      cb.disabled = x.base && !WT.store.isWeak(id, x.key);
+      var lab = el("label", { "class": cb.checked ? "on" : "" }, [
+        cb,
+        el("span", { "class": "t" }, [
+          el("span", { "class": "w", text: x.label }),
+          el("span", { "class": "s", text: x.sub + (cb.disabled ? " (단원 데이터에서 이미 표시됨)" : "") })
+        ])
+      ]);
+      cb.addEventListener("change", function () {
+        WT.store.setWeak(id, x.key, cb.checked);
+        lab.classList.toggle("on", cb.checked || x.base);
+        refresh();
+      });
+      list.appendChild(lab);
+    });
+    refresh();
+    $("dlg").hidden = false;
+  }
+
+  function closeDlg() {
+    $("dlg").hidden = true;
+    if (!weakDlgId) return;
+    var id = weakDlgId;
+    weakDlgId = null;
+    renderLessons();
+    if (state.lessonId === id) { updateWeakControls(); generate(); } // 표시가 바뀌었으니 열려 있는 시험지도 다시 만든다
+  }
+
   // ---------------------------------------------------------------- 시험지 만들기
   function openMaker(id) {
     var it = find(id);
@@ -344,12 +433,12 @@
     $("optClass").value = d.class_code || "";
     $("makeInfo").hidden = true;
     $("sheet").srcdoc = "";
+    $("wWeak").checked = false;
+    $("cWeak").checked = false;
+    updateWeakControls();
     if (it.kind === "word") {
       $("wMode").value = "regular";
       $("wPartsBox").hidden = true;
-      var hasWeak = d.words.some(function (w) { return w.weak; });
-      $("wWeak").checked = false;
-      $("wWeak").disabled = !hasWeak;
     } else {
       $("cMode").value = "sample";
       var sel = $("cHint");
@@ -387,7 +476,7 @@
     var html, warnings = [], errs = [];
     try {
       if (it.kind === "word") {
-        var data = WT.word.load(it.data);
+        var data = WT.word.load(WT.store.withWeak(it));
         if ($("wWeak").checked) data = WT.word.onlyWeak(data);
         var src = WT.word.allowedSources(data);
         var sentences;
@@ -409,8 +498,13 @@
         if (miss.length) warnings.push("정답지에 해석이 없는 문장이 " + miss.length + "개 있어요: " + miss.slice(0, 3).join(" / "));
         if (!errs.length) infoLine(data, "word", seed, warnings);
       } else {
-        var cd = WT.chunk.load(it.data);
+        var cd = WT.chunk.load(WT.store.withWeak(it));
         var mode = $("cMode").value;
+        if ($("cWeak").checked) {
+          cd = WT.chunk.onlyWeak(cd);
+          mode = "full";
+          warnings.push("약한 항목만 낼 때는 표시한 것을 전부 내는 「범위 전체」 방식으로 만들어요.");
+        }
         var hint = $("cHint").value || cd.hint;
         var cs = WT.chunk.makeSet(cd, mode, 6, 3, 2, 1, seed);
         errs = WT.chunk.validate(cd, cs);
@@ -487,15 +581,16 @@
     $("btnPrint").addEventListener("click", printSheet);
     // 번호를 입력하면 그 번호의 시험지를 다시 만든다
     $("optSeed").addEventListener("change", generate);
-    ["wMode", "wParts", "wWeak", "cMode", "cHint", "optKey"].forEach(function (id) {
+    ["wMode", "wParts", "wWeak", "cMode", "cHint", "cWeak", "optKey"].forEach(function (id) {
       $(id).addEventListener("change", function () {
         if (id === "wMode") $("wPartsBox").hidden = $("wMode").value !== "all-write";
         $("optSeed").value = "";
         generate();
       });
     });
-    $("dlgClose").addEventListener("click", function () { $("dlg").hidden = true; });
-    $("dlg").addEventListener("click", function (e) { if (e.target === $("dlg")) $("dlg").hidden = true; });
+    $("dlgClose").addEventListener("click", closeDlg);
+    $("dlg").addEventListener("click", function (e) { if (e.target === $("dlg")) closeDlg(); });
+    $("btnWeakEdit").addEventListener("click", function () { if (state.lessonId) openWeak(state.lessonId); });
     $("btnNames").addEventListener("click", function () {
       var s = WT.store.settings();
       s.nameA = $("nameA").value.trim();

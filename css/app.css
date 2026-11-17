@@ -52,5 +52,13 @@ button:disabled{opacity:.5;cursor:not-allowed}
 table.ct{width:100%;border-collapse:collapse;font-size:14px}
 table.ct th,table.ct td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
 table.ct th{background:var(--bg)}
+.weakgroup{margin:14px 0 6px;font-weight:700;font-size:15px}
+.weaklist{display:flex;flex-direction:column;gap:6px}
+.weaklist label{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.weaklist label.on{background:var(--warn-bg);border-color:var(--warn)}
+.weaklist input{width:24px;height:24px;flex:none}
+.weaklist .w{font-weight:700}
+.weaklist .s{display:block;color:var(--sub);font-size:13px;font-weight:400}
+.weaklist .t{flex:1;min-width:0}
 [hidden]{display:none !important}
 @media (max-width:520px){ main{padding:12px} .card{padding:14px} }
