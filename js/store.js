@@ -8,7 +8,10 @@
   var KEY_SYNCED_OLD = "wp.synced.v1";
   var KEY_SYNCED = "wp.synced.v2";
   var KEY_CONN = "wp.connection.v1";
-  var KEY_WEAK = "wp.weak.v1"; // 틀린 단어 표시: { 단원 id: { 항목 키: { at: 표시한 시각 } } }. 단원 데이터와 따로 저장해서 새 단원을 받아도 남는다.
+  var KEY_WEAK = "wp.weak.v1"; // 틀린 단어 표시: { 단원 id: { 항목 키: { at: 표시한 시각, ok: 표시 뒤 연속으로 맞힌 횟수 } } }. 단원 데이터와 따로 저장해서 새 단원을 받아도 남는다.
+  var KEY_RESULTS = "wp.results.v1"; // 화면에서 푼 시험 기록(최근 것부터 최대 MAX_RESULTS 개)
+  var MAX_RESULTS = 300;
+  var CLEAR_AFTER = 2; // 약한 항목을 화면 시험에서 연속으로 이만큼 맞히면 약한 목록에서 뺀다
   var mem = {};
   var persistent = true;
 
@@ -184,6 +187,60 @@
     return weakItems(it.data).filter(function (x) { return x.base || isWeak(it.id, x.key); }).length;
   }
 
+  // 화면 시험의 채점 결과를 틀린 표시에 반영한다. byKey: { 항목 키: 맞혔는지 }.
+  // 틀리면 약한 목록에 넣고(이미 있으면 연속 맞힘 횟수를 0으로), 약한 항목을 맞히면 횟수를 올려 CLEAR_AFTER 번 연속이면 뺀다.
+  // 단원 데이터 자체의 weak 표시는 바꾸지 않는다.
+  function applyGrading(id, byKey) {
+    var all = weakAll();
+    var m = isObj(all[id]) ? all[id] : {};
+    var now = new Date().toISOString();
+    var res = { added: [], again: [], cleared: [], progress: [] };
+    Object.keys(byKey).forEach(function (key) {
+      if (!byKey[key]) {
+        (has(m, key) ? res.again : res.added).push(key);
+        m[key] = { at: now, ok: 0 };
+      } else if (has(m, key)) {
+        var n = (isObj(m[key]) && typeof m[key].ok === "number" ? m[key].ok : 0) + 1;
+        if (n >= CLEAR_AFTER) { delete m[key]; res.cleared.push(key); }
+        else { m[key] = { at: (isObj(m[key]) && m[key].at) || now, ok: n }; res.progress.push(key); }
+      }
+    });
+    if (Object.keys(m).length) all[id] = m; else delete all[id];
+    saveWeak(all);
+    return res;
+  }
+
+  // ---------------------------------------------------------------- 화면 시험 기록
+  function resultsAll() {
+    var r = parse(read(KEY_RESULTS), []);
+    return Array.isArray(r) ? r.filter(isObj) : [];
+  }
+  function addResult(rec) {
+    var all = resultsAll();
+    all.unshift(rec);
+    write(KEY_RESULTS, JSON.stringify(all.slice(0, MAX_RESULTS)));
+  }
+  function resultsFor(id) { return resultsAll().filter(function (r) { return r.lessonId === id; }); }
+  function mergeResults(incoming) {
+    if (!Array.isArray(incoming)) return 0;
+    var all = resultsAll();
+    var seen = {};
+    all.forEach(function (r) { seen[r.at + "|" + r.lessonId] = true; });
+    var n = 0;
+    incoming.forEach(function (r) {
+      if (!isObj(r) || typeof r.at !== "string" || typeof r.lessonId !== "string" || typeof r.score !== "number") return;
+      if (seen[r.at + "|" + r.lessonId]) return;
+      seen[r.at + "|" + r.lessonId] = true;
+      all.push(r);
+      n++;
+    });
+    if (n) {
+      all.sort(function (a, b) { return a.at < b.at ? 1 : -1; });
+      write(KEY_RESULTS, JSON.stringify(all.slice(0, MAX_RESULTS)));
+    }
+    return n;
+  }
+
   // 시험지 만들기에 넘길 단원 데이터 사본. 기기에 표시한 틀린 항목에 weak: true 를 붙인다.
   function withWeak(it) {
     var copy = JSON.parse(JSON.stringify(it.data));
@@ -216,7 +273,7 @@
 
   // 붙여 넣은 글이나 파일 내용을 가져온다. 단원 하나, 단원 목록, 백업 파일 모두 받는다.
   function importText(text, label) {
-    var res = { added: [], updated: [], errors: [], settingsRestored: false, weakRestored: 0 };
+    var res = { added: [], updated: [], errors: [], settingsRestored: false, weakRestored: 0, resultsRestored: 0 };
     var obj;
     try { obj = JSON.parse(text); }
     catch (e) { res.errors.push((label || "입력") + ": JSON 형식이 아닙니다(" + e.message + ")"); return res; }
@@ -226,6 +283,7 @@
       items = obj.lessons;
       if (obj.settings) { saveSettings(Object.assign(settings(), obj.settings)); res.settingsRestored = true; }
       if (isObj(obj.weak)) res.weakRestored = mergeWeak(obj.weak);
+      if (Array.isArray(obj.results)) res.resultsRestored = mergeResults(obj.results);
     } else items = [obj];
     items.forEach(function (raw, i) {
       var name = (label || "입력") + (items.length > 1 ? " #" + (i + 1) : "");
@@ -254,11 +312,11 @@
     return n;
   }
 
-  // 백업에는 직접 가져온 단원, 설정, 틀린 단어 표시만 넣는다. 연결 열쇠와 자동으로 받은 단원은 넣지 않는다.
+  // 백업에는 직접 가져온 단원, 설정, 틀린 단어 표시, 시험 기록만 넣는다. 연결 열쇠와 자동으로 받은 단원은 넣지 않는다.
   function exportAll() {
     return JSON.stringify({
       app: "word-practice", version: 1, exportedAt: new Date().toISOString(),
-      settings: settings(), weak: weakAll(), lessons: manualList().map(function (x) { return x.data; })
+      settings: settings(), weak: weakAll(), results: resultsAll(), lessons: manualList().map(function (x) { return x.data; })
     }, null, 1);
   }
 
@@ -266,6 +324,7 @@
     list: list, remove: remove, removeAll: removeAll, settings: settings, saveSettings: saveSettings,
     importText: importText, exportAll: exportAll, isPersistent: function () { return persistent; },
     weakItems: weakItems, isWeak: isWeak, setWeak: setWeak, clearWeak: clearWeak, weakCount: weakCount, withWeak: withWeak,
+    applyGrading: applyGrading, addResult: addResult, resultsFor: resultsFor, CLEAR_AFTER: CLEAR_AFTER,
     lessonId: lessonId, syncedState: syncedState, setSynced: setSynced, clearSynced: clearSynced,
     syncedSnapshot: syncedSnapshot, restoreSynced: restoreSynced, setActive: setActive,
     getConnection: getConnection, saveConnection: saveConnection, clearConnection: clearConnection

@@ -121,6 +121,7 @@
         <label class="check"><input type="checkbox" id="optKey" checked> 정답지 쪽 포함</label>
         <div class="row">
           <button type="button" id="btnMake" class="primary">새 시험지 만들기</button>
+          <button type="button" id="btnSolve" class="primary" disabled>태블릿에서 풀기</button>
           <button type="button" id="btnPrint">인쇄 / PDF 저장</button>
         </div>
       </div>
@@ -160,6 +161,12 @@
       <p class="hint">직접 가져온 단원만 지워요. 부모님이 올려 준 단원은 연결을 끊을 때 함께 지워져요.</p>
       <button type="button" id="btnWipe" class="danger">직접 가져온 단원 모두 지우기</button>
     </div>
+    <div class="card">
+      <h2>키보드 확인 (태블릿에서 풀기 전에)</h2>
+      <p class="hint">아래 칸에 <b>american</b> 이라고 소문자로 써 보세요. 키보드가 첫 글자를 대문자로 바꾸거나 단어를 고치면, 정답을 써도 틀린 것으로 채점돼요.</p>
+      <input type="text" id="kbdTest" class="ans" lang="en" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="american">
+      <div id="kbdMsg" role="status" aria-live="polite"></div>
+    </div>
     <div class="card small">
       <h2>안내</h2>
       <ul>
@@ -179,11 +186,26 @@
   </div>
 </div>
 
+<!-- 태블릿에서 풀기 -->
+<div id="solve" class="solve" hidden>
+  <div class="solvebar">
+    <div class="st"><b id="solveTitle"></b><span id="solveSub" class="hint"></span></div>
+    <button type="button" id="btnSolveClose">닫기</button>
+  </div>
+  <div class="solvewrap">
+    <div id="solveTop" class="card"></div>
+    <div id="solveBody"></div>
+    <div class="row solveend"><button type="button" id="btnSolveGrade" class="primary">채점하기</button></div>
+  </div>
+</div>
+
 <script src="js/util.js"></script>
 <script src="js/word.js"></script>
 <script src="js/chunk.js"></script>
 <script src="js/store.js"></script>
 <script src="js/sync.js"></script>
+<script src="js/quiz.js"></script>
+<script src="js/solve.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

@@ -15,7 +15,7 @@
       else if (k.indexOf("on") === 0) n.addEventListener(k.slice(2), attrs[k]);
       else n.setAttribute(k, attrs[k]);
     });
-    (kids || []).forEach(function (c) { n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
+    (kids || []).forEach(function (c) { if (c) n.appendChild(typeof c === "string" ? document.createTextNode(c) : c); });
     return n;
   }
   function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
@@ -95,6 +95,7 @@
         ].concat(it.synced ? [el("span", { "class": "badge kind", text: "부모님이 올림" })] : [])
           .concat(weakN ? [el("span", { "class": "badge warn", text: "틀린 항목 " + weakN + "개" })] : [])),
         el("div", { "class": "meta", text: meta }),
+        recentLine(it),
         el("div", { "class": "row" }, [
           el("button", { type: "button", "class": "primary", text: "시험지 만들기", onclick: function () { openMaker(it.id); } }),
           el("button", { type: "button", text: "틀린 단어 표시", onclick: function () { openWeak(it.id); } }),
@@ -108,12 +109,20 @@
     });
   }
 
+  // 단원 카드에 최근 화면 시험 점수(최대 3개)를 보여 준다.
+  function recentLine(it) {
+    var rs = WT.store.resultsFor(it.id).slice(0, 3);
+    if (!rs.length) return null;
+    return el("div", { "class": "recent", text: "최근 점수: " + rs.map(function (r) { return r.score + "/" + r.total + "(" + fmtDay(r.at) + (r.weakOnly ? " 재시험" : "") + ")"; }).join(", ") });
+  }
+
   function summarize(res) {
     var parts = [];
     if (res.added.length) parts.push("새로 넣음: " + res.added.length + "개");
     if (res.updated.length) parts.push("덮어씀: " + res.updated.length + "개");
     if (res.settingsRestored) parts.push("설정도 가져옴");
     if (res.weakRestored) parts.push("틀린 단어 표시 " + res.weakRestored + "개도 가져옴");
+    if (res.resultsRestored) parts.push("시험 기록 " + res.resultsRestored + "개도 가져옴");
     return parts.join(" · ");
   }
 
@@ -204,6 +213,8 @@
   // 만든 시험지와 고른 단원을 비운다(지금 보는 아이가 바뀌거나 아이를 뺄 때 다른 아이 시험지가 남지 않게).
   function resetMaker() {
     state.lessonId = null;
+    state.last = null;
+    $("btnSolve").disabled = true;
     $("makePanel").hidden = true;
     $("makeEmpty").hidden = false;
     $("sheet").srcdoc = "";
@@ -570,6 +581,9 @@
     var seed = seedText && /^\d+$/.test(seedText) ? parseInt(seedText, 10) : WT.util.newSeed();
     var common = { classCode: $("optClass").value.trim() || null, showKey: $("optKey").checked };
     var html, warnings = [], errs = [];
+    var last = null; // 화면에서 풀 때 쓸 출제 결과(종이 시험지와 같은 문항)
+    state.last = null;
+    $("btnSolve").disabled = true;
     try {
       if (it.kind === "word") {
         var data = WT.word.load(WT.store.withWeak(it));
@@ -583,12 +597,14 @@
           warnings = s.warnings.slice();
           sentences = s.b.map(function (p) { return p[1]; });
           html = WT.word.buildAllWrite(data, s, Object.assign({ parts: parts }, common));
+          last = { quiz: function () { return WT.quiz.fromWord(data, s, { parts: parts }); }, mode: "all-write", parts: $("wParts").value };
         } else {
           var s2 = WT.word.makeRegular(data, WT.word.defaultMcq(data), src, seed);
           errs = WT.word.validateRegular(data, s2);
           warnings = s2.warnings.slice();
           sentences = s2.mcq.map(function (p) { return p[1]; });
           html = WT.word.buildRegular(data, s2, common);
+          last = { quiz: function () { return WT.quiz.fromWord(data, s2, {}); }, mode: "regular", parts: "" };
         }
         var miss = WT.word.missingKo(data, sentences);
         if (miss.length) warnings.push("정답지에 해석이 없는 문장이 " + miss.length + "개 있어요: " + miss.slice(0, 3).join(" / "));
@@ -607,6 +623,7 @@
         if (cs.skipped.length) warnings.push("콜로케이션이 없어 뺀 단어: " + cs.skipped.join(", "));
         if (hint !== cd.hint) warnings.push("데이터 기준(" + (cd.hint === "first" ? "첫 글자 있음" : "없음") + ")과 다른 힌트로 만들었어요.");
         html = WT.chunk.build(cd, cs, Object.assign({ hint: hint }, common));
+        last = { quiz: function () { return WT.quiz.fromChunk(cd, cs, { hint: hint }); }, mode: mode, parts: hint };
         if (!errs.length) infoLine(cd, "chunk", seed, warnings);
       }
     } catch (e) {
@@ -624,6 +641,54 @@
       return;
     }
     $("sheet").srcdoc = html;
+    if (last) {
+      var weakOnly = it.kind === "word" ? $("wWeak").checked : $("cWeak").checked;
+      state.last = Object.assign(last, { lessonId: it.id, kind: it.kind, seed: seed, weakOnly: weakOnly });
+      $("btnSolve").disabled = false;
+    }
+  }
+
+  // ---------------------------------------------------------------- 태블릿에서 풀기
+  function openSolve() {
+    var L = state.last;
+    if (!L) return;
+    var it = find(L.lessonId);
+    if (!it) return;
+    var quiz;
+    try { quiz = L.quiz(); }
+    catch (e) { window.alert("풀 문항을 만들지 못했어요: " + e.message); return; }
+    var key = [L.lessonId, L.kind, L.mode, L.seed, L.parts, L.weakOnly ? "weak" : ""].join("|");
+    WT.solve.open(quiz, {
+      draftKey: key,
+      who: ownerLabel(it.data.owner),
+      onGraded: function (g, q) {
+        // 틀린 것은 약한 목록에 넣고, 약한 항목을 연속으로 맞히면 빼고, 점수를 기록한다.
+        var summary = WT.store.applyGrading(L.lessonId, g.byKey);
+        WT.store.addResult({
+          at: new Date().toISOString(), lessonId: L.lessonId, owner: it.data.owner, title: q.title, kind: q.kind, mode: q.mode,
+          seed: q.seed, weakOnly: !!L.weakOnly, score: g.score, total: g.total,
+          wrong: g.items.filter(function (r) { return !r.correct; }).map(function (r) { return q.items[r.id].word; })
+        });
+        return summary;
+      },
+      onClose: function () { renderLessons(); updateWeakControls(); }
+    });
+  }
+
+  function fmtDay(iso) {
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? "" : (d.getMonth() + 1) + "/" + d.getDate();
+  }
+
+  // 설정의 키보드 확인: american 을 소문자로 쓰게 해서 키보드가 바꾸는지 본다.
+  function checkKeyboard() {
+    var v = $("kbdTest").value;
+    var out = $("kbdMsg");
+    if (!v) { msg(out, "", ""); return; }
+    if (v === "american") msg(out, "ok", "정상이에요. 키보드가 글자를 바꾸지 않았어요.");
+    else if (v.toLowerCase() === "american") msg(out, "err", "첫 글자가 대문자로 바뀌었어요. 이대로면 소문자 정답도 틀린 것으로 채점돼요. 삼성 키보드 설정에서 「자동 대문자」를 꺼 주세요.");
+    else if (v.length >= 8) msg(out, "warn", "american 과 다르게 입력됐어요(" + v + "). 자동 수정이나 예측 텍스트가 바꿨을 수 있어요. 키보드 설정에서 꺼 주세요.");
+    else msg(out, "", "");
   }
 
   function printSheet() {
@@ -677,6 +742,9 @@
     window.addEventListener("online", function () { runSync(false); });
     $("btnMake").addEventListener("click", function () { $("optSeed").value = ""; generate(); });
     $("btnPrint").addEventListener("click", printSheet);
+    $("btnSolve").addEventListener("click", openSolve);
+    WT.solve.bind();
+    $("kbdTest").addEventListener("input", checkKeyboard);
     // 번호를 입력하면 그 번호의 시험지를 다시 만든다
     $("optSeed").addEventListener("change", generate);
     ["wMode", "wParts", "wWeak", "cMode", "cHint", "cWeak", "optKey"].forEach(function (id) {
