@@ -5,6 +5,8 @@
   var WT = (root.WT = root.WT || {});
   var KEY_LESSONS = "wp.lessons.v1";
   var KEY_SETTINGS = "wp.settings.v1";
+  var KEY_SYNCED = "wp.synced.v1";
+  var KEY_CONN = "wp.connection.v1";
   var mem = {};
   var persistent = true;
 
@@ -27,10 +29,41 @@
     return [d.kind, d.owner, d.book || "", d.kind === "word" ? "L" + d.lesson : "", d.title || "", d.class_code || ""].join("|");
   }
 
-  function list() { return parse(read(KEY_LESSONS), []); }
+  // 직접 가져온 단원(수동)과, 부모님 데이터 저장소에서 자동으로 받은 단원(synced)을 따로 저장한다.
+  // 자동으로 받은 단원은 받을 때마다 통째로 바뀌고, 직접 가져온 단원은 그대로 남는다.
+  function manualList() { return parse(read(KEY_LESSONS), []); }
   function saveList(arr) { write(KEY_LESSONS, JSON.stringify(arr)); }
 
-  function remove(id) { saveList(list().filter(function (x) { return x.id !== id; })); }
+  function syncedState() {
+    var s = parse(read(KEY_SYNCED), null);
+    return s && Array.isArray(s.lessons) ? s : null;
+  }
+  function setSynced(state) { write(KEY_SYNCED, JSON.stringify(state)); }
+  function clearSynced() { write(KEY_SYNCED, "null"); }
+
+  function getConnection() {
+    var c = parse(read(KEY_CONN), null);
+    return c && c.child && c.token ? c : null;
+  }
+  function saveConnection(c) { write(KEY_CONN, JSON.stringify(c)); }
+  function clearConnection() { write(KEY_CONN, "null"); }
+
+  // 화면에 보여 줄 전체 목록. 같은 단원이 양쪽에 있으면 자동으로 받은 쪽을 쓴다.
+  function list() {
+    var manual = manualList();
+    var s = syncedState();
+    if (!s) return manual;
+    var ids = {};
+    var out = s.lessons.map(function (raw) {
+      var id = lessonId(raw);
+      ids[id] = true;
+      return { id: id, kind: raw.kind, addedAt: s.syncedAt, data: raw, synced: true };
+    });
+    manual.forEach(function (x) { if (!ids[x.id]) out.push(x); });
+    return out;
+  }
+
+  function remove(id) { saveList(manualList().filter(function (x) { return x.id !== id; })); }
   function removeAll() { saveList([]); }
 
   function settings() { return Object.assign({ nameA: "", nameB: "" }, parse(read(KEY_SETTINGS), {})); }
@@ -43,7 +76,7 @@
     else if (kind === "chunk") WT.chunk.load(raw);
     else throw new Error("kind 가 word 또는 chunk 가 아닙니다");
     var id = lessonId(raw);
-    var arr = list();
+    var arr = manualList();
     var idx = arr.findIndex(function (x) { return x.id === id; });
     var entry = { id: id, kind: kind, addedAt: new Date().toISOString(), data: raw };
     var updated = idx >= 0;
@@ -74,15 +107,18 @@
     return res;
   }
 
+  // 백업에는 직접 가져온 단원과 설정만 넣는다. 연결 열쇠와 자동으로 받은 단원은 넣지 않는다.
   function exportAll() {
     return JSON.stringify({
       app: "word-practice", version: 1, exportedAt: new Date().toISOString(),
-      settings: settings(), lessons: list().map(function (x) { return x.data; })
+      settings: settings(), lessons: manualList().map(function (x) { return x.data; })
     }, null, 1);
   }
 
   WT.store = {
     list: list, remove: remove, removeAll: removeAll, settings: settings, saveSettings: saveSettings,
-    importText: importText, exportAll: exportAll, isPersistent: function () { return persistent; }
+    importText: importText, exportAll: exportAll, isPersistent: function () { return persistent; },
+    lessonId: lessonId, syncedState: syncedState, setSynced: setSynced, clearSynced: clearSynced,
+    getConnection: getConnection, saveConnection: saveConnection, clearConnection: clearConnection
   };
 })(typeof window !== "undefined" ? window : globalThis);

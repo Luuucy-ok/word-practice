@@ -22,8 +22,28 @@
 <main>
   <!-- 단원 -->
   <section id="tab-lessons">
-    <div class="card">
-      <h2>단원 데이터 가져오기</h2>
+    <!-- 연결 링크로 들어왔을 때만 보이는 확인 화면 -->
+    <div id="connectBox" class="card" hidden>
+      <h2>부모님 단원 연결</h2>
+      <p id="connectText"></p>
+      <div class="row">
+        <button type="button" id="btnConnectOk" class="primary">연결하기</button>
+        <button type="button" id="btnConnectCancel">취소</button>
+      </div>
+      <div id="connectMsg" role="status" aria-live="polite"></div>
+    </div>
+    <!-- 연결된 기기에서 보이는 상태 -->
+    <div id="syncBox" class="card" hidden>
+      <h2>부모님이 올려 준 단원</h2>
+      <div id="syncStatus" class="hint"></div>
+      <div id="syncExpiry" role="status"></div>
+      <div id="syncMsg" role="status" aria-live="polite"></div>
+      <div class="row">
+        <button type="button" id="btnSync">지금 새로 받기</button>
+      </div>
+    </div>
+    <details id="importBox" class="card">
+      <summary><b>단원 파일을 직접 가져오기</b></summary>
       <p class="hint">부모님이 만든 단원 데이터(JSON 파일)를 이 기기에 넣어요. 교재 내용이라서 인터넷에 올라가지 않고 <b>이 기기에만</b> 저장돼요.</p>
       <label class="field">파일 고르기(여러 개 가능)
         <input type="file" id="fileIn" accept=".json,application/json" multiple>
@@ -33,7 +53,7 @@
       </label>
       <button type="button" id="btnImport" class="primary">가져오기</button>
       <div id="importMsg" role="status" aria-live="polite"></div>
-    </div>
+    </details>
     <div id="lessonList"></div>
   </section>
 
@@ -100,6 +120,11 @@
       <button type="button" id="btnNames">저장</button>
       <span id="namesMsg" role="status"></span>
     </div>
+    <div class="card" id="connCard">
+      <h2>부모님 단원 연결</h2>
+      <p class="hint" id="connState"></p>
+      <button type="button" id="btnDisconnect" class="danger" hidden>연결 끊기</button>
+    </div>
     <div class="card">
       <h2>백업</h2>
       <p class="hint">브라우저 데이터를 지우면 가져온 단원이 사라져요. 백업 파일을 만들어 두면 다시 넣을 수 있어요.</p>
@@ -111,7 +136,8 @@
     </div>
     <div class="card">
       <h2>이 기기에서 지우기</h2>
-      <button type="button" id="btnWipe" class="danger">가져온 단원 모두 지우기</button>
+      <p class="hint">직접 가져온 단원만 지워요. 부모님이 올려 준 단원은 연결을 끊을 때 함께 지워져요.</p>
+      <button type="button" id="btnWipe" class="danger">직접 가져온 단원 모두 지우기</button>
     </div>
     <div class="card small">
       <h2>안내</h2>
@@ -136,6 +162,7 @@
 <script src="js/word.js"></script>
 <script src="js/chunk.js"></script>
 <script src="js/store.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

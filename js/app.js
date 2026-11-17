@@ -55,7 +55,9 @@
     clear(box);
     var items = WT.store.list();
     if (!items.length) {
-      box.appendChild(el("div", { "class": "card", text: "아직 가져온 단원이 없어요. 위에서 단원 데이터를 가져와 주세요." }));
+      box.appendChild(el("div", { "class": "card", text: WT.store.getConnection()
+        ? "아직 받은 단원이 없어요. 부모님이 단원을 올리면 「지금 새로 받기」로 받을 수 있어요."
+        : "아직 가져온 단원이 없어요. 부모님께 받은 연결 링크를 열면 단원이 자동으로 들어와요. 파일이 있으면 위의 「단원 파일을 직접 가져오기」를 눌러 넣을 수 있어요." }));
       return;
     }
     items.sort(function (a, b) {
@@ -76,15 +78,16 @@
           el("span", { "class": "badge kind", text: it.kind === "word" ? "단어" : "chunk" }),
           el("span", { text: title }),
           el("span", { "class": "badge " + (verified ? "ok" : "warn"), text: verified ? "교재 대조 완료" : "교재 대조 전" })
-        ]),
+        ].concat(it.synced ? [el("span", { "class": "badge kind", text: "부모님이 올림" })] : [])),
         el("div", { "class": "meta", text: meta }),
         el("div", { "class": "row" }, [
           el("button", { type: "button", "class": "primary", text: "시험지 만들기", onclick: function () { openMaker(it.id); } }),
-          el("button", { type: "button", text: "확인 표", onclick: function () { openCheck(it.id); } }),
+          el("button", { type: "button", text: "확인 표", onclick: function () { openCheck(it.id); } })
+        ].concat(it.synced ? [] : [
           el("button", { type: "button", "class": "danger", text: "삭제", onclick: function () {
             if (window.confirm("이 단원을 이 기기에서 지울까요?")) { WT.store.remove(it.id); renderLessons(); }
           } })
-        ])
+        ]))
       ]));
     });
   }
@@ -119,6 +122,132 @@
       if (!total.errors.length) { $("fileIn").value = ""; $("pasteIn").value = ""; }
       renderLessons();
     }).catch(function (e) { msg(out, "err", "읽지 못했어요: " + e.message); });
+  }
+
+  // ---------------------------------------------------------------- 부모님 단원 연결(자동 받기)
+  function fmtTime(iso) {
+    if (!iso) return "아직 없음";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return "알 수 없음";
+    return (d.getMonth() + 1) + "월 " + d.getDate() + "일 " + (d.getHours() < 12 ? "오전 " : "오후 ") + ((d.getHours() % 12) || 12) + ":" + ("0" + d.getMinutes()).slice(-2);
+  }
+
+  // 만료가 가까우면 알려 준다. 30일 안이면 안내, 지나면 오류.
+  function expiryNote(conn) {
+    var left = WT.sync.daysLeft(conn);
+    if (left === null) return { text: "", kind: "" };
+    if (left <= 0) return { text: "열쇠가 만료되었어요. 부모님께 새 연결 링크를 받아 주세요.", kind: "err" };
+    if (left <= WT.sync.WARN_DAYS) return { text: "열쇠가 " + left + "일 뒤에 만료돼요. 부모님께 새 연결 링크를 받아 두세요.", kind: "warn" };
+    return { text: "", kind: "" };
+  }
+
+  function renderSync() {
+    var conn = WT.store.getConnection();
+    $("syncBox").hidden = !conn;
+    $("btnDisconnect").hidden = !conn;
+    $("importBox").open = !conn;
+    if (!conn) {
+      $("connState").textContent = "연결되어 있지 않아요. 부모님께 받은 연결 링크를 이 기기에서 열면 단원이 자동으로 들어와요.";
+      return;
+    }
+    var s = WT.store.syncedState();
+    var who = WT.sync.CHILD_OWNER[conn.child];
+    var line = who + "(" + (WT.store.settings()["name" + conn.child] || "이름 미설정") + ") 용으로 연결됨 · 단원 " + (s ? s.lessons.length : 0) + "개 · 마지막 확인 " + fmtTime(conn.lastSync);
+    $("syncStatus").textContent = line;
+    $("connState").textContent = line + (conn.expires ? " · 열쇠 만료 " + conn.expires.slice(0, 10) : "");
+    var ex = expiryNote(conn);
+    var slot = $("syncExpiry");
+    if (slot) msg(slot, ex.kind, ex.text);
+  }
+
+  function addedLines(r) {
+    return (r.added || []).map(function (x) { return "· " + WT.sync.lessonLabel(x); }).join("\n");
+  }
+
+  // manual 이 아니면(저절로 확인했을 때) 바뀐 것이 없다는 말은 보여 주지 않는다.
+  function showSyncResult(r, manual) {
+    var out = $("syncMsg");
+    if (r.status === "skipped" || r.status === "none" || (r.status === "unchanged" && !manual)) { msg(out, "", ""); return; }
+    var kind = r.status === "error" ? "err" : (r.status === "offline" ? "warn" : "ok");
+    var lines = [r.message];
+    if (r.status === "updated" && r.added.length) lines.push(addedLines(r));
+    if (r.errors && r.errors.length) lines.push("자세히:\n" + r.errors.join("\n"));
+    msg(out, kind, lines.join("\n"));
+  }
+
+  function runSync(force) {
+    if (!WT.store.getConnection()) return Promise.resolve();
+    if (force) msg($("syncMsg"), "ok", "단원을 확인하는 중이에요…");
+    return WT.sync.run(!!force).then(function (r) {
+      showSyncResult(r, !!force);
+      renderSync();
+      renderLessons();
+    });
+  }
+
+  var pendingConnect = null;
+  function askConnect(parsed) {
+    pendingConnect = parsed;
+    var old = WT.store.getConnection();
+    var s = WT.store.settings();
+    var who = WT.sync.CHILD_OWNER[parsed.child];
+    var name = s["name" + parsed.child];
+    var text = "이 기기를 " + who + (name ? "(" + name + ")" : "") + " 용으로 연결할까요? 연결하면 부모님이 올린 " + who + " 단원이 자동으로 들어와요.";
+    if (old && old.child !== parsed.child) {
+      text += "\n\n⚠ 이 기기는 지금 " + WT.sync.CHILD_OWNER[old.child] + " 용으로 연결돼 있어요. 연결하면 " + WT.sync.CHILD_OWNER[old.child] + " 단원은 이 기기에서 지워져요.";
+    }
+    var p = $("connectText");
+    p.textContent = text;
+    p.style.whiteSpace = "pre-line";
+    msg($("connectMsg"), "", "");
+    $("btnConnectOk").hidden = false;
+    $("btnConnectCancel").textContent = "취소";
+    $("connectBox").hidden = false;
+    showTab("lessons");
+  }
+
+  function closeConnect() {
+    pendingConnect = null;
+    $("connectBox").hidden = true;
+    msg($("connectMsg"), "", "");
+  }
+
+  function doConnect() {
+    if (!pendingConnect) return;
+    var parsed = pendingConnect;
+    $("btnConnectOk").disabled = true;
+    msg($("connectMsg"), "ok", "연결하는 중이에요…");
+    WT.sync.connect(parsed).then(function (r) {
+      $("btnConnectOk").disabled = false;
+      if (r.status === "updated" || r.status === "unchanged") {
+        closeConnect();
+        renderSync();
+        renderLessons();
+        msg($("syncMsg"), "ok", "연결했어요. 단원 " + r.total + "개를 받았어요." + (r.added.length ? "\n" + addedLines(r) : ""));
+      } else {
+        msg($("connectMsg"), "err", [r.message].concat(r.errors || []).join("\n"));
+      }
+    });
+  }
+
+  // 주소에 연결 링크가 있으면 열쇠가 주소창과 기록에 남지 않도록 바로 지우고, 확인 화면을 띄운다.
+  function handleConnectLink() {
+    var hash = location.hash;
+    if (hash.indexOf("#connect=") !== 0) return false;
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+    var parsed;
+    try { parsed = WT.sync.parseConnect(hash); }
+    catch (e) {
+      pendingConnect = null;
+      $("connectText").textContent = "연결하지 못했어요.";
+      msg($("connectMsg"), "err", e.message);
+      $("btnConnectOk").hidden = true;
+      $("btnConnectCancel").textContent = "닫기";
+      $("connectBox").hidden = false;
+      return true;
+    }
+    askConnect(parsed);
+    return true;
   }
 
   // ---------------------------------------------------------------- 확인 표
@@ -297,6 +426,21 @@
       b.addEventListener("click", function () { showTab(b.getAttribute("data-tab")); });
     });
     $("btnImport").addEventListener("click", doImport);
+    $("btnSync").addEventListener("click", function () { runSync(true); });
+    $("btnConnectOk").addEventListener("click", doConnect);
+    $("btnConnectCancel").addEventListener("click", closeConnect);
+    $("btnDisconnect").addEventListener("click", function () {
+      if (!window.confirm("연결을 끊을까요? 부모님이 올려 준 단원이 이 기기에서 지워지고, 다시 받으려면 새 연결 링크가 필요해요.")) return;
+      WT.sync.disconnect();
+      state.lessonId = null;
+      $("makePanel").hidden = true;
+      $("makeEmpty").hidden = false;
+      msg($("syncMsg"), "", "");
+      renderSync();
+      renderLessons();
+    });
+    document.addEventListener("visibilitychange", function () { if (!document.hidden) runSync(false); });
+    window.addEventListener("online", function () { runSync(false); });
     $("btnMake").addEventListener("click", function () { $("optSeed").value = ""; generate(); });
     $("btnPrint").addEventListener("click", printSheet);
     // 번호를 입력하면 그 번호의 시험지를 다시 만든다
@@ -316,6 +460,7 @@
       s.nameB = $("nameB").value.trim();
       WT.store.saveSettings(s);
       $("namesMsg").textContent = " 저장했어요.";
+      renderSync();
       renderLessons();
     });
     $("btnExport").addEventListener("click", function () {
@@ -336,7 +481,7 @@
       $("backupIn").value = "";
     });
     $("btnWipe").addEventListener("click", function () {
-      if (window.confirm("가져온 단원을 모두 지울까요? 백업 파일이 없으면 되돌릴 수 없어요.")) {
+      if (window.confirm("직접 가져온 단원을 모두 지울까요? 백업 파일이 없으면 되돌릴 수 없어요.")) {
         WT.store.removeAll();
         state.lessonId = null;
         $("makePanel").hidden = true;
@@ -349,7 +494,10 @@
   function init() {
     bind();
     initSettings();
+    renderSync();
     renderLessons();
+    // 연결 링크로 열었으면 확인 화면을 먼저 보여 주고, 이미 연결된 기기는 새 단원이 있는지 저절로 확인한다.
+    if (!handleConnectLink()) runSync(false);
     if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       navigator.serviceWorker.register("sw.js").catch(function () {});
     }

@@ -11,7 +11,8 @@ var dataDir = process.argv[2], shotDir = process.argv[3];
 if (!dataDir || !shotDir) { console.error("단원 데이터 폴더와 스크린샷 폴더를 주세요"); process.exit(2); }
 fs.mkdirSync(shotDir, { recursive: true });
 var edge = ["C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe"].filter(fs.existsSync)[0];
-var index = "file:///" + path.join(__dirname, "..", "index.html").replace(/\\/g, "/");
+// 환경 변수 APP_URL 을 주면 그 주소(예: 공개된 GitHub Pages 주소)를 점검한다
+var index = process.env.APP_URL || ("file:///" + path.join(__dirname, "..", "index.html").replace(/\\/g, "/"));
 var port = 9333;
 var profile = path.join(shotDir, "profile");
 var proc = cp.spawn(edge, ["--headless=new", "--disable-gpu", "--remote-debugging-port=" + port, "--user-data-dir=" + profile, "--window-size=1100,1400", "about:blank"], { stdio: "ignore" });
