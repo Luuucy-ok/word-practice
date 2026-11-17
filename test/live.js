@@ -57,18 +57,30 @@ function getJson(url) {
   await send("Page.navigate", { url: index + "#connect=" + link });
   await sleep(1500);
   check(/골라 주세요/.test(await T("#connectText")), "아이를 고르는 화면이 뜸");
+  var both = child === "AB"; // CHILD=AB 이면 「두 아이 모두」로 연결한다
   await ev("document.getElementById('btnPick" + child + "').click()");
-  check(/용으로 연결할까요/.test(await T("#connectText")), "연결 확인 화면이 뜸");
+  check(both ? /두 아이가 같이 쓰도록 연결할까요/.test(await T("#connectText")) : /용으로 연결할까요/.test(await T("#connectText")), "연결 확인 화면이 뜸");
   await ev("document.getElementById('btnConnectOk').click()");
-  await sleep(3500);
+  await sleep(both ? 5000 : 3500);
   var msg = await T("#syncMsg");
   var connMsg = await T("#connectMsg");
   check(/연결했어요\. 단원 \d+개를 받았어요/.test(msg), "실제 저장소에서 단원을 받음: " + (msg.split("\n")[0] || connMsg.split("\n")[0]));
   var list = await T("#lessonList");
   var n = (list.match(/부모님이 올림/g) || []).length;
   check(n >= 1, "목록에 받은 단원이 보임(" + n + "개)");
-  var otherOwner = child === "A" ? "아이 B" : "아이 A";
-  check(list.indexOf(otherOwner) < 0, "다른 아이(" + otherOwner + ") 단원은 보이지 않음");
+  if (both) {
+    check(!(await ev("document.getElementById('childBar').hidden")), "「지금 보는 아이」 칸이 보임");
+    check(list.indexOf("아이 B") < 0, "처음에는 아이 A 단원만 보임");
+    await ev("window.confirm=function(){return true}; document.getElementById('btnActiveB').click()");
+    await sleep(500);
+    var listB = await T("#lessonList");
+    var nB = (listB.match(/부모님이 올림/g) || []).length;
+    check(nB >= 1 && listB.indexOf("아이 A") < 0, "아이 B 로 바꾸면 아이 B 단원(" + nB + "개)만 보임");
+    check(n + nB === 12, "두 아이 단원이 합쳐서 12개(" + n + " + " + nB + ")");
+  } else {
+    var otherOwner = child === "A" ? "아이 B" : "아이 A";
+    check(list.indexOf(otherOwner) < 0, "다른 아이(" + otherOwner + ") 단원은 보이지 않음");
+  }
   await shot("live_연결됨");
 
   // 새로 열면 저절로 확인해서 304 로 끝나는지(요청 횟수와 상태는 화면 메시지로 확인)

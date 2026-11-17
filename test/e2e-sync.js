@@ -33,11 +33,15 @@ var files = fs.readdirSync(dataDir);
 function load(re) { return JSON.parse(fs.readFileSync(path.join(dataDir, files.filter(function (f) { return re.test(f); })[0]), "utf8")); }
 var lessons = [load(/^A_단어.*L07/), load(/^A_단어.*L08/), load(/A_chunk.*L07-08/)];
 var BUNDLE = JSON.stringify({ app: "word-practice-bundle", version: 1, owner: "아이 A", publishedAt: "2026-11-17T00:00:00Z", lessons: lessons });
+var lessonsB = [load(/^B_단어.*L07/), load(/^B_단어.*L08/)];
+// 단원 데이터에 이미 들어 있는 weak 표시는 이 점검의 전제(틀린 표시 개수)를 흐리므로 지운다.
+lessonsB.forEach(function (d) { d.words.forEach(function (w) { delete w.weak; }); });
+var BUNDLE_B = JSON.stringify({ app: "word-practice-bundle", version: 1, owner: "아이 B", publishedAt: "2026-11-17T00:00:00Z", lessons: lessonsB });
 var TOKEN = "github_pat_" + "a".repeat(40);
 
 // 페이지가 열릴 때마다 먼저 실행되어 fetch 를 가짜로 바꾼다. 상태는 sessionStorage 에 둬서 새로 고침 뒤에도 이어진다.
 var MOCK = "(function(){" +
-  "var BUNDLE=" + JSON.stringify(BUNDLE) + ";" +
+  "var BUNDLE=" + JSON.stringify(BUNDLE) + ";var BUNDLE_B=" + JSON.stringify(BUNDLE_B) + ";" +
   "function st(){try{return JSON.parse(sessionStorage.getItem('mock')||'{}')}catch(e){return {}}}" +
   "window.__setMock=function(o){var s=st();Object.keys(o).forEach(function(k){s[k]=o[k]});sessionStorage.setItem('mock',JSON.stringify(s))};" +
   "window.__calls=function(){return JSON.parse(sessionStorage.getItem('calls')||'[]')};" +
@@ -46,10 +50,11 @@ var MOCK = "(function(){" +
   "  if(String(url).indexOf('https://api.github.com/')!==0) return real.apply(window,arguments);" +
   "  var s=st();var calls=JSON.parse(sessionStorage.getItem('calls')||'[]');" +
   "  calls.push({url:String(url),auth:(opts.headers||{}).Authorization||null,inm:(opts.headers||{})['If-None-Match']||null});sessionStorage.setItem('calls',JSON.stringify(calls));" +
-  "  var status=s.status||200;var etag=s.body?'\"e2\"':'\"e1\"';" +
+  "  var kid=(/\\/([AB])\\.json$/.exec(String(url))||[0,'A'])[1];" +
+  "  var status=s.status||200;var etag=kid==='B'?'\"b1\"':(s.body?'\"e2\"':'\"e1\"');" +
   "  if(s.offline) return Promise.reject(new TypeError('offline'));" +
   "  if(status===200&&(opts.headers||{})['If-None-Match']===etag) return Promise.resolve(new Response(null,{status:304,headers:{ETag:etag}}));" +
-  "  return Promise.resolve(new Response(status===200?(s.body||BUNDLE):'{}',{status:status,headers:{ETag:etag}}));" +
+  "  return Promise.resolve(new Response(status===200?(kid==='B'&&!s.bAsA?BUNDLE_B:(s.body||BUNDLE)):'{}',{status:status,headers:{ETag:etag}}));" +
   "};" +
   "})();";
 
@@ -204,10 +209,11 @@ var MOCK = "(function(){" +
   await ev("document.getElementById('btnConnectCancel').click()");
   check(!(await H("#connectBox")) && !(await H("#connectPick")) && (await H("#btnConnectOk")), "「뒤로」를 누르면 아이 고르기로 돌아감(링크를 다시 열 필요 없음)");
   // 아이 A 묶음이 오는 가짜 서버에 아이 B 로 연결 시도 → 거부되고 이전 연결 유지
-  await ev("document.getElementById('btnPickB').click(); document.getElementById('btnConnectOk').click()");
+  await ev("window.__setMock({bAsA:true}); document.getElementById('btnPickB').click(); document.getElementById('btnConnectOk').click()"); // 아이 B 묶음 자리에 아이 A 묶음이 오는 사고를 흉내 냄
   await sleep(700);
   check(!(await H("#connectBox")) && /아이 A 것인데/.test(await T("#connectMsg")), "고른 아이와 묶음 주인이 다르면 거부하고 이유를 보여 줌");
   check((await ev("WT.store.getConnection().child")) === "A" && /단어 Lesson 8/.test(await T("#lessonList")), "거부되면 이전 연결(아이 A)과 단원이 그대로 남음");
+  await ev("window.__setMock({bAsA:false})");
   await ev("document.getElementById('btnConnectCancel').click(); document.getElementById('btnConnectCancel').click()");
   check(await H("#connectBox"), "뒤로, 취소를 차례로 누르면 화면이 닫힘");
   // 연결을 끊은 새 기기에서 아이 A 를 골라 연결
@@ -216,11 +222,85 @@ var MOCK = "(function(){" +
   await ev("document.getElementById('btnPickA').click()");
   check(!/⚠/.test(await T("#connectText")), "연결이 없는 기기에서는 경고가 없음");
   await ev("document.getElementById('btnConnectOk').click()");
-  await sleep(800);
+  await sleep(1500);
   var calls13 = await ev("window.__calls()");
-  check(await H("#connectBox") && /연결했어요\. 단원 3개/.test(await T("#syncMsg")) && /A\.json$/.test(calls13[calls13.length - 1].url), "연결이 없는 기기에서 아이 A 를 고르면 A.json 을 받아 연결됨");
+  check(await H("#connectBox") && /연결했어요\. 단원 3개/.test(await T("#syncMsg")) && /A\.json$/.test(calls13[calls13.length - 1].url), "연결이 없는 기기에서 아이 A 를 고르면 A.json 을 받아 연결됨 (연결 화면: " + (await T("#connectMsg")).split("\n")[0] + " / 결과: " + (await T("#syncMsg")).split("\n")[0] + " / 요청 " + calls13.length + "번)");
   check((await ev("WT.store.getConnection().child")) === "A" && (await ev("localStorage.getItem('wp.connection.v1')")).indexOf('"child":"A"') > 0, "고른 아이가 연결 정보에 저장됨");
   await shot("s9_공용링크연결");
+
+  // 14) 두 아이 함께 연결: 공용 링크에서 「두 아이 모두」
+  var yes = "window.confirm=function(){return true};";
+  var clickBtn = function (text) { return ev("(function(){var b=Array.from(document.querySelectorAll('button')).filter(function(x){return x.textContent===" + JSON.stringify(text) + " && x.offsetParent!==null})[0];if(!b)return false;b.click();return true})()"); };
+  await ev("sessionStorage.setItem('calls','[]')");
+  await open("#connect=" + shared);
+  check(/두 아이 모두/.test(await T("#btnPickAB")) && /A\.json|아이 A 전용/.test(await T("#btnPickA")) && /아이 B 전용/.test(await T("#btnPickB")), "고르기 화면에 「아이 A 전용」「아이 B 전용」「두 아이 모두」 버튼이 있음");
+  await ev("document.getElementById('btnPickAB').click()");
+  var askAB = await T("#connectText");
+  check(/두 아이가 같이 쓰도록 연결할까요/.test(askAB) && /아이 B 단원이 모두|두 아이 단원이 모두/.test(askAB) && !(await H("#btnConnectOk")), "「두 아이 모두」를 고르면 확인 문구가 뜸");
+  await shot("s10_두아이_확인");
+  await ev("document.getElementById('btnConnectOk').click()");
+  await sleep(1500);
+  check(await H("#connectBox"), "연결하면 확인 화면이 닫힘");
+  check(!(await H("#childBar")) && /✓ 아이 A/.test(await T("#btnActiveA")) && !/✓/.test(await T("#btnActiveB")), "맨 위에 「지금 보는 아이」 칸이 생기고 아이 A 가 선택되어 있음");
+  var msgAB = await T("#syncMsg");
+  check(/연결했어요\. 단원 5개/.test(msgAB), "두 아이 단원 5개(아이 A 3개 + 아이 B 2개)를 받았다고 알려 줌: " + msgAB.split("\n")[0]);
+  var callsAB = await ev("window.__calls()");
+  check(callsAB.length === 2 && /A\.json$/.test(callsAB[0].url) && /B\.json$/.test(callsAB[1].url) && callsAB.every(function (c) { return c.auth === "Bearer " + TOKEN; }), "A.json, B.json 을 한 번씩 같은 열쇠로 받음");
+  var listA = await T("#lessonList");
+  check(/아이 A/.test(listA) && listA.indexOf("아이 B") < 0 && (listA.match(/부모님이 올림/g) || []).length === 3, "지금 보는 아이(아이 A)의 단원 3개만 보이고 아이 B 단원은 안 보임");
+  check(/두 아이 함께 연결됨.*아이 A 3개.*아이 B 2개/.test(await T("#syncStatus")), "상태 줄: " + await T("#syncStatus"));
+  await shot("s11_두아이_A");
+
+  // 아이 B 로 바꾸기(확인 창 → 아이 B 단원만 보임, 열려 있던 시험지는 비움)
+  await ev(yes + "Array.from(document.querySelectorAll('#lessonList .card')).filter(function(c){return /단어 Lesson 8/.test(c.innerText)})[0].querySelector('button.primary').click()");
+  await sleep(500);
+  check(!(await H("#makePanel")), "(아이 A 단원으로 시험지를 열어 둠)");
+  await ev("document.getElementById('btnActiveB').click()");
+  await sleep(300);
+  var listB = await T("#lessonList");
+  check(/✓ 아이 B/.test(await T("#btnActiveB")) && /아이 B/.test(listB) && listB.indexOf("아이 A") < 0 && (listB.match(/부모님이 올림/g) || []).length === 2, "아이 B 로 바꾸면 아이 B 단원 2개만 보임");
+  check((await H("#makePanel")) && !(await H("#makeEmpty")) && (await ev("document.getElementById('sheet').srcdoc")) === "", "바꾸면 열려 있던 아이 A 시험지는 비워짐");
+  await shot("s12_두아이_B");
+  // 취소하면 바뀌지 않음
+  await ev("window.confirm=function(){return false}; document.getElementById('btnActiveA').click()");
+  check(/✓ 아이 B/.test(await T("#btnActiveB")), "바꿀지 묻는 창에서 취소하면 그대로임");
+
+  // 새로 열어도 지금 보는 아이 유지, 틀린 표시는 아이마다 따로
+  await open("");
+  await sleep(400);
+  check(!(await H("#childBar")) && /✓ 아이 B/.test(await T("#btnActiveB")) && /아이 B/.test(await T("#lessonList")), "페이지를 새로 열어도 두 아이 연결과 지금 보는 아이(아이 B)가 유지됨");
+  await ev(yes + "Array.from(document.querySelectorAll('#lessonList .card')).filter(function(c){return /단어 Lesson 7/.test(c.innerText)})[0].querySelectorAll('button')[1].click()");
+  await ev("document.querySelectorAll('#dlgBody .weaklist input[type=checkbox]')[0].click(); document.getElementById('dlgClose').click()");
+  check(/틀린 항목 1개/.test(await T("#lessonList")), "아이 B 단원에 틀린 단어를 표시함");
+  await ev(yes + "document.getElementById('btnActiveA').click()");
+  await sleep(300);
+  check(!/틀린 항목/.test(await T("#lessonList")), "아이 A 로 바꾸면 아이 B 의 틀린 표시는 보이지 않음");
+  await ev(yes + "document.getElementById('btnActiveB').click()");
+  await sleep(300);
+  check(/틀린 항목 1개/.test(await T("#lessonList")), "다시 아이 B 로 돌아오면 틀린 표시가 그대로 있음");
+
+  // 설정: 한 아이만 쓰기 / 다시 더하기
+  await ev("document.querySelector('#tabs button[data-tab=settings]').click()");
+  check(/두 아이 함께 연결됨/.test(await T("#connState")) && (await ev("document.querySelectorAll('#childActions button').length")) === 2, "설정에 두 아이 연결 상태와 「한 아이만 쓰기」 버튼 2개가 보임");
+  await shot("s13_설정_두아이");
+  await ev(yes + "Array.from(document.querySelectorAll('#childActions button')).filter(function(b){return /^아이 B만 쓰기/.test(b.textContent)})[0].click()");
+  await sleep(300);
+  check(await H("#childBar"), "한 아이만 쓰기로 바꾸면 「지금 보는 아이」 칸이 사라짐");
+  check(!/아이 A/.test(await ev("document.getElementById('lessonList').innerText")) && /아이 B/.test(await ev("document.getElementById('lessonList').innerText")), "아이 A 단원이 이 기기에서 지워지고 아이 B 단원만 남음");
+  check(/아이 B.*연결됨/.test(await T("#connState")) && !/두 아이/.test(await T("#connState")) && /아이 A.*도 이 기기에서 쓰기/.test(await T("#childActions")), "설정에 「아이 A도 이 기기에서 쓰기」 버튼이 나옴");
+  await ev("sessionStorage.setItem('calls','[]')");
+  await clickBtn("아이 A도 이 기기에서 쓰기");
+  await sleep(900);
+  var callsAdd = await ev("window.__calls()");
+  check(!(await H("#childBar")) && callsAdd.length === 1 && /A\.json$/.test(callsAdd[0].url) && callsAdd[0].auth === "Bearer " + TOKEN, "링크 없이 저장된 열쇠로 아이 A 를 더하면 A.json 만 받고 두 아이 연결로 돌아옴");
+  await ev("document.querySelector('#tabs button[data-tab=lessons]').click()");
+  check(/✓ 아이 B/.test(await T("#btnActiveB")) && /틀린 항목 1개/.test(await T("#lessonList")), "더한 뒤에도 지금 보던 아이(아이 B)와 틀린 표시가 그대로임");
+  // 연결 끊기
+  await ev("document.querySelector('#tabs button[data-tab=settings]').click()");
+  await ev(yes + "document.getElementById('btnDisconnect').click()");
+  await sleep(300);
+  var allStore = await ev("JSON.stringify(Object.keys(localStorage).map(function(k){return localStorage.getItem(k)}))");
+  check(await H("#childBar") && allStore.indexOf(TOKEN) < 0, "두 아이 연결을 끊으면 「지금 보는 아이」 칸이 사라지고 열쇠가 저장소에서 지워짐");
 
   ws.close();
   proc.kill();

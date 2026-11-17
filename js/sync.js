@@ -81,49 +81,89 @@
     return Object.assign({ status: status, message: message, added: [], total: 0, errors: [] }, extra || {});
   }
 
-  // 연결 정보로 묶음 파일을 한 번 받아 저장한다. 연결 정보는 직접 고치지 않고 새 값을 돌려준다.
-  function pull(conn) {
-    var url = "https://api.github.com/repos/" + REPO.owner + "/" + REPO.repo + "/contents/" + CHILD_FILE[conn.child];
-    var prev = WT.store.syncedState();
-    var hasData = !!(prev && prev.child === conn.child);
+  function who(child) { return CHILD_OWNER[child]; }
+
+  // 한 아이의 묶음 파일을 한 번 받아 저장한다. 연결 정보는 직접 고치지 않고, 그 아이의 ETag 만 새 값으로 돌려준다.
+  function pullChild(conn, child) {
+    var url = "https://api.github.com/repos/" + REPO.owner + "/" + REPO.repo + "/contents/" + CHILD_FILE[child];
+    var prev = WT.store.syncedState(child);
+    var hasData = !!prev;
+    var oldEtag = conn.children && conn.children[child] ? conn.children[child].etag || null : null;
     var headers = { Authorization: "Bearer " + conn.token, Accept: "application/vnd.github.raw+json" };
-    if (hasData && conn.etag) headers["If-None-Match"] = conn.etag;
+    if (hasData && oldEtag) headers["If-None-Match"] = oldEtag;
+    function keep(out) { return { child: child, out: out, etag: oldEtag }; }
 
     return fetchFn()(url, { headers: headers, cache: "no-store" }).then(function (res) {
       var etag = res.headers && res.headers.get ? res.headers.get("ETag") : null;
-      if (res.status === 304) return { out: result("unchanged", "새로 올라온 단원은 없어요.", { total: hasData ? prev.lessons.length : 0 }), conn: conn };
-      if (res.status === 401) return { out: result("error", "열쇠가 만료되었거나 취소되었어요. 부모님께 새 연결 링크를 받아 주세요. 지금 있는 단원은 그대로 쓸 수 있어요.", { auth: true }), conn: conn };
-      if (res.status === 404) return { out: result("error", "단원 파일을 찾지 못했어요. 부모님이 아직 올리지 않았거나 열쇠 권한이 맞지 않을 수 있어요."), conn: conn };
-      if (res.status === 403 || res.status === 429) return { out: result("error", "지금은 받을 수 없어요. 잠시 뒤에 다시 눌러 보세요."), conn: conn };
-      if (res.status !== 200) return { out: result("error", "받는 중 문제가 생겼어요(응답 " + res.status + ")."), conn: conn };
+      if (res.status === 304) return keep(result("unchanged", "새로 올라온 단원은 없어요.", { total: hasData ? prev.lessons.length : 0 }));
+      if (res.status === 401) return keep(result("error", "열쇠가 만료되었거나 취소되었어요. 부모님께 새 연결 링크를 받아 주세요. 지금 있는 단원은 그대로 쓸 수 있어요.", { auth: true }));
+      if (res.status === 404) return keep(result("error", "단원 파일을 찾지 못했어요. 부모님이 아직 올리지 않았거나 열쇠 권한이 맞지 않을 수 있어요."));
+      if (res.status === 403 || res.status === 429) return keep(result("error", "지금은 받을 수 없어요. 잠시 뒤에 다시 눌러 보세요."));
+      if (res.status !== 200) return keep(result("error", "받는 중 문제가 생겼어요(응답 " + res.status + ")."));
       return res.text().then(function (text) {
         var bundle;
         try { bundle = JSON.parse(text); }
-        catch (e) { return { out: result("error", "받은 파일을 읽지 못했어요. 부모님께 알려 주세요. 이전 단원은 그대로 두었어요."), conn: conn }; }
-        var chk = checkBundle(bundle, conn.child);
+        catch (e) { return keep(result("error", "받은 파일을 읽지 못했어요. 부모님께 알려 주세요. 이전 단원은 그대로 두었어요.")); }
+        var chk = checkBundle(bundle, child);
         if (chk.errors) {
-          return { out: result("error", "받은 단원에 문제가 있어서 바꾸지 않았어요. 이전 단원은 그대로예요. 부모님께 알려 주세요.", { errors: chk.errors }), conn: conn };
+          return keep(result("error", "받은 단원에 문제가 있어서 바꾸지 않았어요. 이전 단원은 그대로예요. 부모님께 알려 주세요.", { errors: chk.errors }));
         }
         var oldIds = {};
         if (hasData) prev.lessons.forEach(function (r) { oldIds[WT.store.lessonId(r)] = true; });
         var added = chk.lessons.filter(function (r) { return !oldIds[WT.store.lessonId(r)]; });
-        WT.store.setSynced({ child: conn.child, publishedAt: chk.publishedAt, syncedAt: new Date(nowMs()).toISOString(), lessons: chk.lessons });
-        var next = Object.assign({}, conn, { etag: etag || null });
+        WT.store.setSynced({ child: child, publishedAt: chk.publishedAt, syncedAt: new Date(nowMs()).toISOString(), lessons: chk.lessons });
         return {
+          child: child,
           out: result("updated", added.length ? "새 단원 " + added.length + "개를 받았어요." : "단원을 새로 확인했어요.", { added: added, total: chk.lessons.length }),
-          conn: next
+          etag: etag || null
         };
       });
     }, function () {
-      return { out: result("offline", "인터넷에 연결되지 않아서 저장된 단원을 보여 줘요."), conn: conn };
+      return keep(result("offline", "인터넷에 연결되지 않아서 저장된 단원을 보여 줘요."));
     });
   }
 
-  function finish(conn, r) {
-    var c = Object.assign({}, r.conn, { lastAttempt: new Date(nowMs()).toISOString(), lastStatus: r.out.status });
-    if (r.out.status === "updated" || r.out.status === "unchanged") c.lastSync = c.lastAttempt;
+  // 여러 아이의 묶음을 차례로 받는다(한 아이 연결이면 그 아이 하나만).
+  function pullKids(conn, kids) {
+    var results = [];
+    return kids.reduce(function (p, child) {
+      return p.then(function () {
+        return pullChild(conn, child).then(function (r) { results.push(r); }, function () {
+          results.push({ child: child, out: result("error", "받는 중 문제가 생겼어요. 잠시 뒤에 다시 눌러 보세요."), etag: conn.children && conn.children[child] ? conn.children[child].etag || null : null });
+        });
+      });
+    }, Promise.resolve()).then(function () { return results; });
+  }
+
+  // 아이별 결과를 하나로 합친다. 한 아이뿐이면 그 결과를 그대로 쓴다. 오류가 하나라도 있으면 오류로 알린다.
+  function combine(results) {
+    if (results.length === 1) return results[0].out;
+    var errs = results.filter(function (r) { return r.out.status === "error"; });
+    if (errs.length) {
+      return result("error", errs.map(function (r) { return who(r.child) + ": " + r.out.message; }).join("\n"), {
+        errors: errs.reduce(function (acc, r) { return acc.concat(r.out.errors.map(function (e) { return who(r.child) + " " + e; })); }, []),
+        auth: errs.some(function (r) { return r.out.auth; })
+      });
+    }
+    var total = results.reduce(function (n, r) { return n + (r.out.total || 0); }, 0);
+    var off = results.filter(function (r) { return r.out.status === "offline"; });
+    if (off.length) return result("offline", off[0].out.message, { total: total });
+    var added = results.reduce(function (acc, r) { return acc.concat(r.out.added); }, []);
+    if (results.some(function (r) { return r.out.status === "updated"; })) {
+      return result("updated", added.length ? "새 단원 " + added.length + "개를 받았어요." : "단원을 새로 확인했어요.", { added: added, total: total });
+    }
+    return result("unchanged", "새로 올라온 단원은 없어요.", { total: total });
+  }
+
+  // 받은 결과를 연결 정보에 반영해 저장한다(아이별 ETag, 마지막 확인 시각).
+  function finish(conn, results) {
+    var out = combine(results);
+    var c = Object.assign({}, conn, { lastAttempt: new Date(nowMs()).toISOString(), lastStatus: out.status });
+    c.children = Object.assign({}, conn.children);
+    results.forEach(function (r) { c.children[r.child] = Object.assign({}, c.children[r.child], { etag: r.etag }); });
+    if (out.status === "updated" || out.status === "unchanged") c.lastSync = c.lastAttempt;
     WT.store.saveConnection(c);
-    return r.out;
+    return out;
   }
 
   // 이미 연결된 기기에서 새 단원이 있는지 확인한다. force 가 아니면 최근에 확인했을 때는 건너뛴다.
@@ -135,34 +175,76 @@
     if (left !== null && left <= 0) return Promise.resolve(result("error", "열쇠가 만료되었어요. 부모님께 새 연결 링크를 받아 주세요. 지금 있는 단원은 그대로 쓸 수 있어요.", { auth: true }));
     if (!force && nowMs() - lastAttempt < MIN_GAP_MS) return Promise.resolve(result("skipped", ""));
     lastAttempt = nowMs();
-    running = pull(conn).then(function (r) { running = null; return finish(conn, r); }, function () {
+    running = pullKids(conn, conn.kids).then(function (rs) { running = null; return finish(conn, rs); }, function () {
       running = null;
       return result("error", "받는 중 문제가 생겼어요. 잠시 뒤에 다시 눌러 보세요.");
     });
     return running;
   }
 
-  // 새 연결 링크로 처음 연결한다. 받기에 성공해야 열쇠를 저장한다.
+  // 새 연결 링크로 처음 연결한다. parsed.child 는 한 아이 전용, parsed.kids(["A","B"])는 두 아이 함께 쓰기.
+  // 고른 아이 모두 받기에 성공해야 열쇠를 저장하고, 하나라도 실패하면 이전 연결과 단원을 그대로 둔다.
   function connect(parsed) {
-    if (!CHILD_FILE[parsed.child]) return Promise.resolve(result("error", "어느 아이 용으로 연결할지 골라 주세요."));
+    var kids = (parsed.kids || (parsed.child ? [parsed.child] : [])).filter(function (k, i, a) { return a.indexOf(k) === i; }).sort();
+    if (!kids.length || kids.some(function (k) { return !CHILD_FILE[k]; })) return Promise.resolve(result("error", "어느 아이 용으로 연결할지 골라 주세요."));
     var old = WT.store.getConnection();
-    var oldSynced = WT.store.syncedState();
-    var conn = { child: parsed.child, token: parsed.token, expires: parsed.expires, etag: null, connectedAt: new Date(nowMs()).toISOString() };
-    // 다른 아이로 바꾸는 경우 이전 아이의 자동 받은 단원이 남지 않게 먼저 비운다. 실패하면 되돌린다.
-    var switching = !!(old && old.child !== parsed.child);
-    if (switching) WT.store.clearSynced();
-    function undo() { if (switching && oldSynced) WT.store.setSynced(oldSynced); }
-    return pull(conn).then(function (r) {
-      if (r.out.status === "updated" || r.out.status === "unchanged") {
+    var snapshot = WT.store.syncedSnapshot();
+    var children = {};
+    kids.forEach(function (k) { children[k] = { etag: null }; });
+    var active = old && kids.indexOf(old.active) >= 0 ? old.active : kids[0];
+    var conn = { token: parsed.token, expires: parsed.expires, children: children, active: active, child: active, kids: kids, connectedAt: new Date(nowMs()).toISOString() };
+    function undo() { WT.store.restoreSynced(snapshot); }
+    return pullKids(conn, kids).then(function (rs) {
+      var out = combine(rs);
+      if (out.status === "updated" || out.status === "unchanged") {
+        // 이번에 고르지 않은 아이의 자동 단원은 이 기기에서 지운다.
+        ["A", "B"].forEach(function (k) { if (kids.indexOf(k) < 0) WT.store.clearSynced(k); });
         lastAttempt = nowMs();
-        return finish(conn, r);
+        return finish(conn, rs);
       }
       undo();
-      return r.out;
+      return out;
     }, function () {
       undo();
       return result("error", "받는 중 문제가 생겼어요. 잠시 뒤에 다시 눌러 보세요.");
     });
+  }
+
+  // 이미 연결된 기기(저장된 열쇠)에 다른 아이를 더한다. 링크가 필요 없다. 실패하면 아무것도 바꾸지 않는다.
+  function addChild(code) {
+    var conn = WT.store.getConnection();
+    if (!conn) return Promise.resolve(result("error", "연결되어 있지 않아요."));
+    if (!CHILD_FILE[code]) return Promise.resolve(result("error", "어느 아이인지 알 수 없어요."));
+    if (conn.kids.indexOf(code) >= 0) return Promise.resolve(result("unchanged", who(code) + " 은(는) 이미 연결되어 있어요.", { total: (WT.store.syncedState(code) || { lessons: [] }).lessons.length }));
+    var left = daysLeft(conn);
+    if (left !== null && left <= 0) return Promise.resolve(result("error", "열쇠가 만료되었어요. 부모님께 새 연결 링크를 받아 주세요.", { auth: true }));
+    var snapshot = WT.store.syncedSnapshot();
+    var tmp = Object.assign({}, conn, { children: Object.assign({}, conn.children) });
+    tmp.children[code] = { etag: null };
+    return pullChild(tmp, code).then(function (r) {
+      if (r.out.status !== "updated" && r.out.status !== "unchanged") { WT.store.restoreSynced(snapshot); return r.out; }
+      var c = Object.assign({}, conn);
+      c.children = Object.assign({}, conn.children);
+      c.children[code] = { etag: r.etag };
+      WT.store.saveConnection(c);
+      return result("updated", who(code) + " 단원 " + r.out.total + "개를 받았어요.", { added: r.out.added, total: r.out.total });
+    }, function () {
+      WT.store.restoreSynced(snapshot);
+      return result("error", "받는 중 문제가 생겼어요. 잠시 뒤에 다시 눌러 보세요.");
+    });
+  }
+
+  // 두 아이를 함께 연결한 기기에서 한 아이를 뺀다(그 아이의 자동 단원은 이 기기에서 지워진다). 마지막 한 아이는 뺄 수 없다.
+  function removeChild(code) {
+    var conn = WT.store.getConnection();
+    if (!conn || conn.kids.indexOf(code) < 0 || conn.kids.length < 2) return false;
+    var c = Object.assign({}, conn);
+    c.children = Object.assign({}, conn.children);
+    delete c.children[code];
+    c.active = conn.active === code ? conn.kids.filter(function (k) { return k !== code; })[0] : conn.active;
+    WT.store.saveConnection(c);
+    WT.store.clearSynced(code);
+    return true;
   }
 
   function disconnect() {
@@ -174,7 +256,7 @@
   WT.sync = {
     REPO: REPO, CHILD_OWNER: CHILD_OWNER, WARN_DAYS: WARN_DAYS,
     parseConnect: parseConnect, daysLeft: daysLeft, checkBundle: checkBundle, lessonLabel: lessonLabel,
-    run: run, connect: connect, disconnect: disconnect,
+    run: run, connect: connect, addChild: addChild, removeChild: removeChild, disconnect: disconnect,
     _fetch: null, _now: null
   };
 })(typeof window !== "undefined" ? window : globalThis);

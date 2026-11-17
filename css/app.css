@@ -52,6 +52,10 @@ button:disabled{opacity:.5;cursor:not-allowed}
 table.ct{width:100%;border-collapse:collapse;font-size:14px}
 table.ct th,table.ct td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
 table.ct th{background:var(--bg)}
+.childbar{padding:12px 16px}
+.childbar b{display:block;margin-bottom:8px}
+.childbar .row button{flex:1;min-height:52px;font-size:17px}
+.childbar .hint{margin:8px 0 0}
 .weakgroup{margin:14px 0 6px;font-weight:700;font-size:15px}
 .weaklist{display:flex;flex-direction:column;gap:6px}
 .weaklist label{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}

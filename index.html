@@ -20,6 +20,16 @@
 </header>
 
 <main>
+  <!-- 한 기기에 두 아이를 함께 연결했을 때만 보이는 「지금 보는 아이」 전환 -->
+  <div id="childBar" class="card childbar" hidden>
+    <b>지금 보는 아이</b>
+    <div class="row">
+      <button type="button" id="btnActiveA"></button>
+      <button type="button" id="btnActiveB"></button>
+    </div>
+    <div id="childBarHint" class="hint"></div>
+  </div>
+
   <!-- 단원 -->
   <section id="tab-lessons">
     <!-- 연결 링크로 들어왔을 때만 보이는 확인 화면 -->
@@ -29,6 +39,7 @@
       <div class="row" id="connectPick" hidden>
         <button type="button" id="btnPickA" class="primary"></button>
         <button type="button" id="btnPickB" class="primary"></button>
+        <button type="button" id="btnPickAB">두 아이 모두 (한 기기를 같이 써요)</button>
       </div>
       <div class="row">
         <button type="button" id="btnConnectOk" class="primary">연결하기</button>
@@ -131,7 +142,9 @@
     <div class="card" id="connCard">
       <h2>부모님 단원 연결</h2>
       <p class="hint" id="connState"></p>
-      <button type="button" id="btnDisconnect" class="danger" hidden>연결 끊기</button>
+      <div class="row" id="childActions"></div>
+      <div id="childMsg" role="status" aria-live="polite"></div>
+      <button type="button" id="btnDisconnect" class="danger" hidden style="margin-top:8px">연결 끊기</button>
     </div>
     <div class="card">
       <h2>백업</h2>

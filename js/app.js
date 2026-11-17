@@ -46,6 +46,16 @@
   }
 
   // ---------------------------------------------------------------- 단원 목록
+  // 두 아이를 함께 연결한 기기면 연결 정보를, 아니면 null 을 돌려준다.
+  function multiChild() {
+    var c = WT.store.getConnection();
+    return c && c.kids.length > 1 ? c : null;
+  }
+  function childLabel(code) {
+    var name = WT.store.settings()["name" + code];
+    return WT.sync.CHILD_OWNER[code] + (name ? "(" + name + ")" : "");
+  }
+
   function find(id) {
     return WT.store.list().filter(function (x) { return x.id === id; })[0];
   }
@@ -54,6 +64,9 @@
     var box = $("lessonList");
     clear(box);
     var items = WT.store.list();
+    var mc = multiChild();
+    // 두 아이를 함께 연결한 기기에서는 지금 보는 아이의 단원만 보여 준다.
+    if (mc) items = items.filter(function (x) { return x.data.owner === WT.sync.CHILD_OWNER[mc.active]; });
     if (!items.length) {
       box.appendChild(el("div", { "class": "card", text: WT.store.getConnection()
         ? "아직 받은 단원이 없어요. 부모님이 단원을 올리면 「지금 새로 받기」로 받을 수 있어요."
@@ -148,6 +161,8 @@
 
   function renderSync() {
     var conn = WT.store.getConnection();
+    renderChildBar();
+    renderChildActions();
     $("syncBox").hidden = !conn;
     $("btnDisconnect").hidden = !conn;
     $("importBox").open = !conn;
@@ -155,14 +170,91 @@
       $("connState").textContent = "연결되어 있지 않아요. 부모님께 받은 연결 링크를 이 기기에서 열면 단원이 자동으로 들어와요.";
       return;
     }
-    var s = WT.store.syncedState();
-    var who = WT.sync.CHILD_OWNER[conn.child];
-    var line = who + "(" + (WT.store.settings()["name" + conn.child] || "이름 미설정") + ") 용으로 연결됨 · 단원 " + (s ? s.lessons.length : 0) + "개 · 마지막 확인 " + fmtTime(conn.lastSync);
+    var line;
+    if (conn.kids.length > 1) {
+      var counts = conn.kids.map(function (k) { var s2 = WT.store.syncedState(k); return childLabel(k) + " " + (s2 ? s2.lessons.length : 0) + "개"; });
+      line = "두 아이 함께 연결됨 · 단원 " + counts.join(", ") + " · 마지막 확인 " + fmtTime(conn.lastSync);
+    } else {
+      var s = WT.store.syncedState(conn.child);
+      line = WT.sync.CHILD_OWNER[conn.child] + "(" + (WT.store.settings()["name" + conn.child] || "이름 미설정") + ") 용으로 연결됨 · 단원 " + (s ? s.lessons.length : 0) + "개 · 마지막 확인 " + fmtTime(conn.lastSync);
+    }
     $("syncStatus").textContent = line;
     $("connState").textContent = line + (conn.expires ? " · 열쇠 만료 " + conn.expires.slice(0, 10) : "");
     var ex = expiryNote(conn);
     var slot = $("syncExpiry");
     if (slot) msg(slot, ex.kind, ex.text);
+  }
+
+  // 두 아이를 함께 연결한 기기의 맨 위 「지금 보는 아이」 전환 칸
+  function renderChildBar() {
+    var mc = multiChild();
+    $("childBar").hidden = !mc;
+    if (!mc) return;
+    ["A", "B"].forEach(function (code) {
+      var b = $("btnActive" + code);
+      var on = mc.active === code;
+      b.textContent = (on ? "✓ " : "") + childLabel(code);
+      b.className = on ? "primary" : "";
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    var s = WT.store.settings();
+    $("childBarHint").textContent = (!s.nameA || !s.nameB) ? "설정에서 아이 이름을 적어 두면 버튼에 이름이 같이 나와요." : "";
+  }
+
+  // 만든 시험지와 고른 단원을 비운다(지금 보는 아이가 바뀌거나 아이를 뺄 때 다른 아이 시험지가 남지 않게).
+  function resetMaker() {
+    state.lessonId = null;
+    $("makePanel").hidden = true;
+    $("makeEmpty").hidden = false;
+    $("sheet").srcdoc = "";
+  }
+
+  function switchActive(code) {
+    var mc = multiChild();
+    if (!mc || mc.active === code) return;
+    if (!window.confirm("지금 보는 아이를 " + childLabel(code) + "(으)로 바꿀까요?")) return;
+    WT.store.setActive(code);
+    resetMaker();
+    renderSync();
+    renderLessons();
+    showTab("lessons");
+  }
+
+  // 설정 화면: 다른 아이를 더하거나(링크 없이 저장된 열쇠로 받음) 한 아이만 쓰도록 되돌린다.
+  function renderChildActions() {
+    var box = $("childActions");
+    clear(box);
+    var conn = WT.store.getConnection();
+    if (!conn) return;
+    if (conn.kids.length === 1) {
+      var other = conn.kids[0] === "A" ? "B" : "A";
+      box.appendChild(el("button", { type: "button", text: childLabel(other) + "도 이 기기에서 쓰기", onclick: function () { addChild(other); } }));
+    } else {
+      conn.kids.forEach(function (k) {
+        var gone = k === "A" ? "B" : "A";
+        box.appendChild(el("button", { type: "button", text: childLabel(k) + "만 쓰기", onclick: function () {
+          if (!window.confirm(childLabel(gone) + " 단원이 이 기기에서 지워져요. " + childLabel(k) + "만 쓰는 기기로 바꿀까요?")) return;
+          WT.sync.removeChild(gone);
+          resetMaker();
+          msg($("childMsg"), "ok", childLabel(gone) + " 단원을 이 기기에서 지웠어요.");
+          renderSync();
+          renderLessons();
+        } }));
+      });
+    }
+  }
+
+  function addChild(code) {
+    msg($("childMsg"), "ok", childLabel(code) + " 단원을 받는 중이에요…");
+    WT.sync.addChild(code).then(function (r) {
+      if (r.status === "updated") {
+        msg($("childMsg"), "ok", r.message + "\n단원 화면 위에서 지금 보는 아이를 바꿀 수 있어요.");
+      } else {
+        msg($("childMsg"), r.status === "unchanged" ? "ok" : "err", [r.message].concat(r.errors || []).join("\n"));
+      }
+      renderSync();
+      renderLessons();
+    });
   }
 
   function addedLines(r) {
@@ -193,26 +285,25 @@
   var pendingConnect = null;
   var pickBase = null; // 아이를 고르는 링크로 들어온 경우, 고르기 전의 연결 정보(뒤로 갈 때 쓴다)
 
-  function childLabel(code) {
-    var name = WT.store.settings()["name" + code];
-    return WT.sync.CHILD_OWNER[code] + (name ? "(" + name + ")" : "");
-  }
-
-  function oldChildWarning(code) {
+  // 새로 연결하면 이 기기에서 지워지는 아이(지금 연결된 아이 중 이번에 고르지 않은 아이)를 알리는 경고
+  function oldChildWarning(kids) {
     var old = WT.store.getConnection();
-    if (!old || old.child === code) return "";
-    return "\n\n⚠ 이 기기는 지금 " + WT.sync.CHILD_OWNER[old.child] + " 용으로 연결돼 있어요. 연결하면 " + WT.sync.CHILD_OWNER[old.child] + " 단원은 이 기기에서 지워져요.";
+    if (!old) return "";
+    var lost = old.kids.filter(function (k) { return kids.indexOf(k) < 0; });
+    if (!lost.length) return "";
+    var names = lost.map(function (k) { return WT.sync.CHILD_OWNER[k]; }).join(", ");
+    return "\n\n⚠ 이 기기에는 지금 " + names + " 단원이 있어요. 연결하면 " + names + " 단원은 이 기기에서 지워져요.";
   }
 
-  // 링크에 아이가 정해져 있지 않으면 이 기기를 쓸 아이를 고르게 한다. 한 번 고르면 연결 끊기 전까지 그 아이 용으로 고정된다.
+  // 링크에 아이가 정해져 있지 않으면 이 기기를 누가 쓸지 고르게 한다. 한 아이 전용이나 두 아이 함께 쓰기를 고를 수 있다.
   function showPick(parsed) {
     pickBase = parsed;
     pendingConnect = null;
     var p = $("connectText");
-    p.textContent = "이 기기를 쓸 아이를 골라 주세요. 고르면 부모님이 올린 그 아이의 단원이 자동으로 들어와요. 한 번 연결하면 이 기기는 그 아이 용으로 고정돼요(바꾸려면 설정의 「연결 끊기」).";
+    p.textContent = "이 기기를 누가 쓸지 골라 주세요. 고르면 부모님이 올린 단원이 자동으로 들어와요.\n· 한 아이만 쓰는 기기면 그 아이를 골라요.\n· 한 기기를 두 아이가 번갈아 쓰면 「두 아이 모두」를 골라요. 화면 위에서 지금 보는 아이를 바꿀 수 있어요.";
     p.style.whiteSpace = "pre-line";
-    $("btnPickA").textContent = childLabel("A");
-    $("btnPickB").textContent = childLabel("B");
+    $("btnPickA").textContent = childLabel("A") + " 전용";
+    $("btnPickB").textContent = childLabel("B") + " 전용";
     $("connectPick").hidden = false;
     $("btnConnectOk").hidden = true;
     $("btnConnectCancel").textContent = "취소";
@@ -222,10 +313,13 @@
   }
 
   function askConnect(parsed) {
-    if (!parsed.child) { showPick(parsed); return; }
+    var kids = parsed.kids || (parsed.child ? [parsed.child] : null);
+    if (!kids) { showPick(parsed); return; }
     pendingConnect = parsed;
-    var who = WT.sync.CHILD_OWNER[parsed.child];
-    var text = "이 기기를 " + childLabel(parsed.child) + " 용으로 연결할까요? 연결하면 부모님이 올린 " + who + " 단원이 자동으로 들어와요." + oldChildWarning(parsed.child);
+    var text = kids.length > 1
+      ? "이 기기를 " + childLabel("A") + "와(과) " + childLabel("B") + " 두 아이가 같이 쓰도록 연결할까요? 두 아이 단원이 모두 들어오고, 화면 위에서 지금 보는 아이를 바꿀 수 있어요."
+      : "이 기기를 " + childLabel(kids[0]) + " 용으로 연결할까요? 연결하면 부모님이 올린 " + WT.sync.CHILD_OWNER[kids[0]] + " 단원이 자동으로 들어와요.";
+    text += oldChildWarning(kids);
     var p = $("connectText");
     p.textContent = text;
     p.style.whiteSpace = "pre-line";
@@ -239,7 +333,8 @@
 
   function pickChild(code) {
     if (!pickBase) return;
-    askConnect(Object.assign({}, pickBase, { child: code }));
+    if (code === "AB") askConnect(Object.assign({}, pickBase, { child: null, kids: ["A", "B"] }));
+    else askConnect(Object.assign({}, pickBase, { child: code, kids: null }));
   }
 
   function cancelConnect() {
@@ -264,6 +359,7 @@
       $("btnConnectOk").disabled = false;
       if (r.status === "updated" || r.status === "unchanged") {
         closeConnect();
+        resetMaker();
         renderSync();
         renderLessons();
         msg($("syncMsg"), "ok", "연결했어요. 단원 " + r.total + "개를 받았어요." + (r.added.length ? "\n" + addedLines(r) : ""));
@@ -565,13 +661,15 @@
     $("btnConnectCancel").addEventListener("click", cancelConnect);
     $("btnPickA").addEventListener("click", function () { pickChild("A"); });
     $("btnPickB").addEventListener("click", function () { pickChild("B"); });
+    $("btnPickAB").addEventListener("click", function () { pickChild("AB"); });
+    $("btnActiveA").addEventListener("click", function () { switchActive("A"); });
+    $("btnActiveB").addEventListener("click", function () { switchActive("B"); });
     $("btnDisconnect").addEventListener("click", function () {
       if (!window.confirm("연결을 끊을까요? 부모님이 올려 준 단원이 이 기기에서 지워지고, 다시 받으려면 새 연결 링크가 필요해요.")) return;
       WT.sync.disconnect();
-      state.lessonId = null;
-      $("makePanel").hidden = true;
-      $("makeEmpty").hidden = false;
+      resetMaker();
       msg($("syncMsg"), "", "");
+      msg($("childMsg"), "", "");
       renderSync();
       renderLessons();
     });

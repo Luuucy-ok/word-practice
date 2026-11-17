@@ -30,22 +30,26 @@ function load(re) {
 function enc(o) { return Buffer.from(JSON.stringify(o), "utf8").toString("base64url"); }
 
 var TOKEN = "github_pat_" + "x".repeat(40);
-var A7 = load(/^A_단어.*L07/), A8 = load(/^A_단어.*L08/), B7 = load(/^B_단어.*L07/);
+var A7 = load(/^A_단어.*L07/), A8 = load(/^A_단어.*L08/), B7 = load(/^B_단어.*L07/), B8 = load(/^B_단어.*L08/);
 function bundle(owner, lessons) { return { app: "word-practice-bundle", version: 1, owner: owner, publishedAt: "2026-11-17T00:00:00Z", lessons: lessons }; }
 
 // 가짜 서버
-var server = { status: 200, body: null, etag: '"e1"', calls: [], throwNet: false };
+// server.files 가 있으면 A.json, B.json 마다 따로 응답한다(두 아이 함께 연결 점검용).
+var server = { status: 200, body: null, etag: '"e1"', calls: [], throwNet: false, files: null };
 WT.sync._fetch = function (url, opts) {
   server.calls.push({ url: url, headers: opts.headers });
   if (server.throwNet) return Promise.reject(new TypeError("network"));
+  var f = server.files ? server.files[/\/([AB])\.json$/.exec(url)[1]] : server;
   var inm = opts.headers["If-None-Match"];
-  if (server.status === 200 && inm && inm === server.etag) return Promise.resolve({ status: 304, headers: { get: function () { return server.etag; } }, text: function () { return Promise.resolve(""); } });
+  if (f.status === 200 && inm && inm === f.etag) return Promise.resolve({ status: 304, headers: { get: function () { return f.etag; } }, text: function () { return Promise.resolve(""); } });
   return Promise.resolve({
-    status: server.status,
-    headers: { get: function (h) { return h.toLowerCase() === "etag" ? server.etag : null; } },
-    text: function () { return Promise.resolve(typeof server.body === "string" ? server.body : JSON.stringify(server.body)); }
+    status: f.status,
+    headers: { get: function (h) { return h.toLowerCase() === "etag" ? f.etag : null; } },
+    text: function () { return Promise.resolve(typeof f.body === "string" ? f.body : JSON.stringify(f.body)); }
   });
 };
+// 기기 저장을 비우고, 저장 코드가 메모리에 따로 들고 있는 값도 새로 시작하게 다시 읽어 들인다.
+function resetStore() { store.clear(); vm.runInThisContext(fs.readFileSync(path.join(root, "js/store.js"), "utf8"), { filename: "js/store.js" }); }
 var clock = Date.parse("2026-11-17T01:00:00Z");
 WT.sync._now = function () { return clock; };
 
@@ -181,6 +185,86 @@ function throws(fn) { try { fn(); return null; } catch (e) { return e.message; }
   WT.sync.disconnect();
   check(WT.store.getConnection() === null && WT.store.list().every(function (x) { return !x.synced; }), "연결을 끊으면 열쇠와 자동 단원이 지워지고 수동 단원은 남음");
   check(Array.from(store.values()).every(function (v) { return v.indexOf(TOKEN) < 0; }), "연결을 끊은 뒤 저장소 어디에도 열쇠가 없음");
+
+  // --- 두 아이를 한 기기에 함께 연결
+  resetStore();
+  server.files = {
+    A: { status: 200, body: bundle("아이 A", [A7, A8]), etag: '"fa1"' },
+    B: { status: 200, body: bundle("아이 B", [B7]), etag: '"fb1"' }
+  };
+  server.calls.length = 0;
+  var pShared = WT.sync.parseConnect("#connect=" + enc({ v: 1, t: TOKEN, x: "2027-11-16T15:00:00Z" }));
+  var both = await WT.sync.connect(Object.assign({}, pShared, { kids: ["A", "B"] }));
+  var cn = WT.store.getConnection();
+  check(both.status === "updated" && both.total === 3 && cn.kids.join() === "A,B" && cn.active === "A" && cn.child === "A", "두 아이를 함께 연결하면 두 묶음(3개)을 받고 연결 정보에 두 아이가 들어감");
+  check(server.calls.length === 2 && /A\.json$/.test(server.calls[0].url) && /B\.json$/.test(server.calls[1].url) && server.calls.every(function (c) { return c.headers.Authorization === "Bearer " + TOKEN; }), "A.json, B.json 을 한 번씩 같은 열쇠로 요청함");
+  check(WT.store.syncedState("A").lessons.length === 2 && WT.store.syncedState("B").lessons.length === 1 && WT.store.syncedState() === null, "아이별로 따로 저장되고, 아이를 정하지 않고 물으면 한 아이 것으로 보지 않음");
+  var listed2 = WT.store.list().filter(function (x) { return x.synced; });
+  check(listed2.length === 3 && listed2.filter(function (x) { return x.data.owner === "아이 A"; }).length === 2 && listed2.filter(function (x) { return x.data.owner === "아이 B"; }).length === 1, "목록에는 두 아이 단원이 모두 들어 있음(화면에서 지금 보는 아이로 걸러서 보여 줌)");
+
+  server.calls.length = 0;
+  var again2 = await WT.sync.run(true);
+  check(again2.status === "unchanged" && server.calls.length === 2 && server.calls.every(function (c) { return c.headers["If-None-Match"] === (/A\.json$/.test(c.url) ? '"fa1"' : '"fb1"'); }), "다시 확인하면 아이마다 자기 ETag 로 물어보고 둘 다 바뀐 것이 없다고 나옴");
+
+  server.files.B = { status: 200, body: bundle("아이 B", [B7, B8]), etag: '"fb2"' };
+  var upd = await WT.sync.run(true);
+  check(upd.status === "updated" && upd.added.length === 1 && upd.added[0].owner === "아이 B" && upd.total === 4 && WT.store.syncedState("B").lessons.length === 2 && WT.store.syncedState("A").lessons.length === 2, "한쪽 아이에게만 새 단원이 올라오면 그 아이 것만 바뀌고 새 단원으로 알려 줌");
+
+  server.files.A = { status: 401, body: "{}", etag: '"fa1"' };
+  server.files.B = { status: 200, body: bundle("아이 B", [B7]), etag: '"fb3"' };
+  var half = await WT.sync.run(true);
+  check(half.status === "error" && half.auth === true && /아이 A: 열쇠가 만료/.test(half.message) && WT.store.syncedState("B").lessons.length === 1 && WT.store.syncedState("A").lessons.length === 2, "한 아이가 오류여도 어느 아이인지 알리고, 오류난 아이 단원은 그대로이며 나머지 아이는 정상으로 받음");
+  server.files.A = { status: 200, body: bundle("아이 B", [B7]), etag: '"fa2"' };
+  var wrongOwner = await WT.sync.run(true);
+  check(wrongOwner.status === "error" && /^아이 A: /.test(wrongOwner.message) && wrongOwner.errors.some(function (e) { return /아이 B 것인데/.test(e); }) && WT.store.syncedState("A").lessons.length === 2, "아이 A 묶음에 아이 B 단원이 섞여 오면 거부하고 아이 A 단원은 그대로임");
+  server.files.A = { status: 200, body: bundle("아이 A", [A7, A8]), etag: '"fa1"' };
+
+  // 하나라도 받지 못하면 새 연결을 하지 않음(이전 연결과 단원 그대로)
+  var beforeConn = JSON.stringify(WT.store.getConnection()), beforeSynced = JSON.stringify(WT.store.syncedSnapshot());
+  server.files.B = { status: 404, body: "{}", etag: '"x"' };
+  var partial = await WT.sync.connect(Object.assign({}, pShared, { kids: ["A", "B"], token: "github_pat_" + "z".repeat(40) }));
+  check(partial.status === "error" && JSON.stringify(WT.store.getConnection()) === beforeConn && JSON.stringify(WT.store.syncedSnapshot()) === beforeSynced, "두 아이 연결 중 한쪽을 받지 못하면 이전 연결과 단원을 그대로 두고 새 열쇠는 저장하지 않음");
+  server.files.B = { status: 200, body: bundle("아이 B", [B7, B8]), etag: '"fb2"' };
+
+  // 지금 보는 아이 바꾸기
+  check(WT.store.setActive("B") === true && WT.store.getConnection().active === "B" && WT.store.getConnection().child === "B" && WT.store.setActive("C") === false && WT.store.getConnection().active === "B", "지금 보는 아이를 바꿀 수 있고, 모르는 아이는 거부함");
+  check(JSON.parse(store.get("wp.connection.v1")).active === "B", "지금 보는 아이가 저장되어 새로 열어도 유지됨");
+
+  // 한 아이 빼기와 다시 더하기(링크 없이, 저장된 열쇠로)
+  check(WT.sync.removeChild("B") === true && WT.store.getConnection().kids.join() === "A" && WT.store.getConnection().active === "A" && WT.store.syncedState("B") === null && WT.store.syncedState("A").lessons.length === 2, "아이 B 를 빼면 아이 B 단원만 지워지고 지금 보는 아이는 아이 A 로 돌아옴");
+  check(WT.sync.removeChild("A") === false && WT.store.getConnection().kids.join() === "A", "마지막 한 아이는 뺄 수 없음");
+  server.calls.length = 0;
+  server.files.B = { status: 404, body: "{}", etag: '"x"' };
+  var addFail = await WT.sync.addChild("B");
+  check(addFail.status === "error" && WT.store.getConnection().kids.join() === "A" && WT.store.syncedState("B") === null, "아이 B 를 더하다 실패하면 아무것도 바꾸지 않음");
+  server.files.B = { status: 200, body: bundle("아이 B", [B7, B8]), etag: '"fb2"' };
+  server.calls.length = 0;
+  var add = await WT.sync.addChild("B");
+  check(add.status === "updated" && WT.store.getConnection().kids.join() === "A,B" && WT.store.syncedState("B").lessons.length === 2 && server.calls.length === 1 && /B\.json$/.test(server.calls[0].url) && server.calls[0].headers.Authorization === "Bearer " + TOKEN, "링크 없이 저장된 열쇠로 아이 B 를 더하면 B.json 만 한 번 받음");
+  var addAgain = await WT.sync.addChild("B");
+  check(addAgain.status === "unchanged" && /이미 연결/.test(addAgain.message), "이미 연결된 아이를 또 더하지 않음");
+
+  // 두 아이 연결에서 한 아이 전용으로 다시 연결하면 다른 아이 단원이 지워짐
+  var solo = await WT.sync.connect(Object.assign({}, pShared, { child: "A" }));
+  check(solo.status === "updated" && WT.store.getConnection().kids.join() === "A" && WT.store.syncedState("B") === null, "한 아이 전용으로 다시 연결하면 다른 아이 단원이 이 기기에서 지워짐");
+  WT.sync.disconnect();
+  check(WT.store.getConnection() === null && WT.store.list().every(function (x) { return !x.synced; }), "두 아이를 연결했어도 연결을 끊으면 열쇠와 단원이 모두 지워짐");
+
+  // --- 한 아이만 연결하던 예전 저장 형식을 새 형식으로 읽음(이미 쓰고 있는 태블릿)
+  resetStore();
+  store.set("wp.connection.v1", JSON.stringify({ child: "B", token: TOKEN, expires: "2027-11-16T15:00:00Z", etag: '"old"', connectedAt: "2026-11-17T01:00:00Z", lastSync: "2026-11-17T01:00:00Z", lastStatus: "updated" }));
+  store.set("wp.synced.v1", JSON.stringify({ child: "B", publishedAt: "p", syncedAt: "s", lessons: [B7] }));
+  var legacy = WT.store.getConnection();
+  check(legacy && legacy.kids.join() === "B" && legacy.child === "B" && legacy.active === "B" && legacy.children.B.etag === '"old"' && !("etag" in legacy), "예전 형식 연결 정보를 새 형식으로 읽음(아이 B, ETag 유지)");
+  check(WT.store.syncedState("B").lessons.length === 1 && WT.store.syncedState().child === "B" && WT.store.list().filter(function (x) { return x.synced; }).length === 1, "예전 형식으로 받아 둔 단원도 그대로 보임");
+  server.files = { A: { status: 200, body: bundle("아이 A", [A7]), etag: '"fa1"' }, B: { status: 200, body: bundle("아이 B", [B7]), etag: '"old"' } };
+  server.calls.length = 0;
+  var legacyRun = await WT.sync.run(true);
+  check(legacyRun.status === "unchanged" && server.calls.length === 1 && server.calls[0].headers["If-None-Match"] === '"old"', "예전 형식 기기도 저장된 ETag 로 물어보고 바뀐 것이 없으면 304 로 끝남");
+  var addToLegacy = await WT.sync.addChild("A");
+  check(addToLegacy.status === "updated" && WT.store.getConnection().kids.join() === "A,B" && WT.store.getConnection().active === "B" && WT.store.syncedState("B").lessons.length === 1, "예전 형식 기기에 아이 A 를 더해도 지금 보던 아이 B 와 단원이 그대로임");
+  check(store.get("wp.synced.v1") === "null" && JSON.parse(store.get("wp.synced.v2")).A && JSON.parse(store.get("wp.synced.v2")).B, "새 형식으로 저장하면 예전 저장값은 비움");
+  server.files = null;
 
   console.log(fails === 0 ? "자동 받기 점검 모두 통과" : "실패 " + fails + "건");
   process.exit(fails === 0 ? 0 : 1);

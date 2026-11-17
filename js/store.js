@@ -5,7 +5,8 @@
   var WT = (root.WT = root.WT || {});
   var KEY_LESSONS = "wp.lessons.v1";
   var KEY_SETTINGS = "wp.settings.v1";
-  var KEY_SYNCED = "wp.synced.v1";
+  var KEY_SYNCED_OLD = "wp.synced.v1";
+  var KEY_SYNCED = "wp.synced.v2";
   var KEY_CONN = "wp.connection.v1";
   var KEY_WEAK = "wp.weak.v1"; // 틀린 단어 표시: { 단원 id: { 항목 키: { at: 표시한 시각 } } }. 단원 데이터와 따로 저장해서 새 단원을 받아도 남는다.
   var mem = {};
@@ -35,30 +36,94 @@
   function manualList() { return parse(read(KEY_LESSONS), []); }
   function saveList(arr) { write(KEY_LESSONS, JSON.stringify(arr)); }
 
-  function syncedState() {
+  // 자동으로 받은 단원은 아이별로 따로 저장한다: { A: { publishedAt, syncedAt, lessons }, B: { ... } }.
+  // 아이 한 명만 연결하던 예전 형식(wp.synced.v1)은 읽을 때 새 형식으로 옮긴다.
+  function syncedAll() {
     var s = parse(read(KEY_SYNCED), null);
-    return s && Array.isArray(s.lessons) ? s : null;
+    var out = {};
+    if (isObj(s)) {
+      ["A", "B"].forEach(function (c) { if (isObj(s[c]) && Array.isArray(s[c].lessons)) out[c] = s[c]; });
+      return out;
+    }
+    var old = parse(read(KEY_SYNCED_OLD), null);
+    if (old && (old.child === "A" || old.child === "B") && Array.isArray(old.lessons)) {
+      out[old.child] = { publishedAt: old.publishedAt || null, syncedAt: old.syncedAt, lessons: old.lessons };
+    }
+    return out;
   }
-  function setSynced(state) { write(KEY_SYNCED, JSON.stringify(state)); }
-  function clearSynced() { write(KEY_SYNCED, "null"); }
+  function saveSyncedAll(all) { write(KEY_SYNCED, JSON.stringify(all)); write(KEY_SYNCED_OLD, "null"); }
 
+  // child 를 주면 그 아이의 자동 단원을, 주지 않으면 자동 단원이 한 아이 것뿐일 때 그 아이의 것을 돌려준다.
+  function syncedState(child) {
+    var all = syncedAll();
+    if (!child) {
+      var ks = Object.keys(all);
+      if (ks.length !== 1) return null;
+      child = ks[0];
+    }
+    var s = all[child];
+    return s ? { child: child, publishedAt: s.publishedAt, syncedAt: s.syncedAt, lessons: s.lessons } : null;
+  }
+  function setSynced(state) {
+    var all = syncedAll();
+    all[state.child] = { publishedAt: state.publishedAt, syncedAt: state.syncedAt, lessons: state.lessons };
+    saveSyncedAll(all);
+  }
+  function clearSynced(child) {
+    if (!child) { saveSyncedAll({}); return; }
+    var all = syncedAll();
+    delete all[child];
+    saveSyncedAll(all);
+  }
+  function syncedSnapshot() { return JSON.parse(JSON.stringify(syncedAll())); }
+  function restoreSynced(snap) { saveSyncedAll(snap || {}); }
+
+  // 연결 정보: { token, expires, connectedAt, children: { A: { etag }, B: { etag } }, active, lastSync ... }.
+  // 읽을 때 child(= active, 지금 보는 아이)와 kids(연결된 아이 목록)를 덧붙인다. 아이 한 명 형식(child, etag)도 새 형식으로 옮긴다.
   function getConnection() {
     var c = parse(read(KEY_CONN), null);
-    return c && c.child && c.token ? c : null;
+    if (!isObj(c) || !c.token) return null;
+    var kids = isObj(c.children) ? Object.keys(c.children).filter(function (k) { return k === "A" || k === "B"; }).sort() : [];
+    if (!kids.length) {
+      if (c.child !== "A" && c.child !== "B") return null;
+      c.children = {};
+      c.children[c.child] = { etag: c.etag || null };
+      kids = [c.child];
+    }
+    delete c.etag;
+    if (kids.indexOf(c.active) < 0) c.active = kids.indexOf(c.child) >= 0 ? c.child : kids[0];
+    c.child = c.active;
+    c.kids = kids;
+    return c;
   }
-  function saveConnection(c) { write(KEY_CONN, JSON.stringify(c)); }
+  function saveConnection(c) {
+    var copy = Object.assign({}, c);
+    delete copy.kids;
+    if (copy.active) copy.child = copy.active;
+    write(KEY_CONN, JSON.stringify(copy));
+  }
   function clearConnection() { write(KEY_CONN, "null"); }
+  function setActive(code) {
+    var c = getConnection();
+    if (!c || c.kids.indexOf(code) < 0) return false;
+    c.active = code;
+    saveConnection(c);
+    return true;
+  }
 
-  // 화면에 보여 줄 전체 목록. 같은 단원이 양쪽에 있으면 자동으로 받은 쪽을 쓴다.
+  // 화면에 보여 줄 전체 목록(두 아이를 함께 연결했으면 두 아이 것이 모두 들어 있다). 같은 단원이 양쪽에 있으면 자동으로 받은 쪽을 쓴다.
   function list() {
     var manual = manualList();
-    var s = syncedState();
-    if (!s) return manual;
+    var all = syncedAll();
     var ids = {};
-    var out = s.lessons.map(function (raw) {
-      var id = lessonId(raw);
-      ids[id] = true;
-      return { id: id, kind: raw.kind, addedAt: s.syncedAt, data: raw, synced: true };
+    var out = [];
+    Object.keys(all).sort().forEach(function (child) {
+      var s = all[child];
+      s.lessons.forEach(function (raw) {
+        var id = lessonId(raw);
+        ids[id] = true;
+        out.push({ id: id, kind: raw.kind, addedAt: s.syncedAt, data: raw, synced: true });
+      });
     });
     manual.forEach(function (x) { if (!ids[x.id]) out.push(x); });
     return out;
@@ -202,6 +267,7 @@
     importText: importText, exportAll: exportAll, isPersistent: function () { return persistent; },
     weakItems: weakItems, isWeak: isWeak, setWeak: setWeak, clearWeak: clearWeak, weakCount: weakCount, withWeak: withWeak,
     lessonId: lessonId, syncedState: syncedState, setSynced: setSynced, clearSynced: clearSynced,
+    syncedSnapshot: syncedSnapshot, restoreSynced: restoreSynced, setActive: setActive,
     getConnection: getConnection, saveConnection: saveConnection, clearConnection: clearConnection
   };
 })(typeof window !== "undefined" ? window : globalThis);
