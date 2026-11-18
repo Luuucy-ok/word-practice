@@ -171,14 +171,15 @@
     return Array.isArray(all[code]) ? all[code] : [];
   }
   // 외우기를 끝내거나 시험을 채점하면 스티커를 하나 받는다. 받은 스티커를 돌려준다.
-  function award(owner, from) {
+  // sticker 를 주면 그 스티커(예: 학원 시험 만점 🏆)를, 없으면 테마 스티커 중 하나를 준다.
+  function award(owner, from, sticker) {
     var code = codeOfOwner(owner) || currentCode();
     var theme = themeOf(code);
     var set = THEMES[theme].stickers;
     var s = settings();
     s.stickers = Object.assign({}, s.stickers || {});
     var list = Array.isArray(s.stickers[code]) ? s.stickers[code].slice() : [];
-    var got = { s: set[Math.floor(Math.random() * set.length)], at: new Date().toISOString(), from: String(from || "").slice(0, 60) };
+    var got = { s: sticker || set[Math.floor(Math.random() * set.length)], at: new Date().toISOString(), from: String(from || "").slice(0, 60) };
     list.push(got);
     if (list.length > MAX_STICKERS) list = list.slice(list.length - MAX_STICKERS);
     s.stickers[code] = list;

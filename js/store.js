@@ -141,6 +141,15 @@
 
   // 학원 시험을 본 단원(「시험 끝」 표시): settings.done = { 단원 id: 표시한 시각 }. 단원 id 는 다시 받아도 같아서 표시가 남는다.
   function doneAt(id) { var d = settings().done; return isObj(d) && typeof d[id] === "string" ? d[id] : null; }
+  // 학원 시험 점수(단원마다 하나, 다시 적으면 고침): settings.academy = { 단원 id: { date, score, total, memo, wrong: [항목 키], owner, title, kind, at, trophy } }
+  function academyAll() { var a = settings().academy; return isObj(a) ? a : {}; }
+  function academyFor(id) { var r = academyAll()[id]; return isObj(r) && typeof r.score === "number" ? r : null; }
+  function setAcademy(id, rec) {
+    var s = settings();
+    s.academy = Object.assign({}, isObj(s.academy) ? s.academy : {});
+    if (rec) s.academy[id] = Object.assign({}, rec, { at: new Date().toISOString() }); else delete s.academy[id];
+    saveSettings(s);
+  }
   function setDone(id, on) {
     var s = settings();
     s.done = Object.assign({}, isObj(s.done) ? s.done : {});
@@ -351,6 +360,14 @@
   function mergeSettings(now, from) {
     var out = Object.assign({}, now, from);
     if (isObj(from.done) || isObj(now.done)) out.done = Object.assign({}, isObj(from.done) ? from.done : {}, isObj(now.done) ? now.done : {}); // 시험 끝 표시는 합친다
+    if (isObj(from.academy) || isObj(now.academy)) { // 학원 점수는 단원마다 더 나중에 적은 것을 남긴다
+      var acA = isObj(now.academy) ? now.academy : {}, acB = isObj(from.academy) ? from.academy : {};
+      out.academy = {};
+      Object.keys(Object.assign({}, acA, acB)).forEach(function (k) {
+        var x = acA[k], y = acB[k];
+        out.academy[k] = !isObj(y) ? x : !isObj(x) ? y : (String(y.at || "") > String(x.at || "") ? y : x);
+      });
+    }
     if (isObj(from.stickers) || isObj(now.stickers)) {
       var a = isObj(now.stickers) ? now.stickers : {}, b = isObj(from.stickers) ? from.stickers : {};
       out.stickers = {};
@@ -421,7 +438,7 @@
   }
 
   WT.store = {
-    list: list, remove: remove, removeAll: removeAll, settings: settings, saveSettings: saveSettings, mergeSettings: mergeSettings, doneAt: doneAt, setDone: setDone,
+    list: list, remove: remove, removeAll: removeAll, settings: settings, saveSettings: saveSettings, mergeSettings: mergeSettings, doneAt: doneAt, setDone: setDone, academyAll: academyAll, academyFor: academyFor, setAcademy: setAcademy,
     importText: importText, exportAll: exportAll, isPersistent: function () { return persistent; },
     weakItems: weakItems, isWeak: isWeak, setWeak: setWeak, clearWeak: clearWeak, weakCount: weakCount, withWeak: withWeak,
     applyGrading: applyGrading, addResult: addResult, resultsFor: resultsFor, CLEAR_AFTER: CLEAR_AFTER,

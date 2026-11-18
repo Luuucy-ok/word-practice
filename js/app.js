@@ -121,6 +121,7 @@
 
   function renderLessons() {
     renderStickers();
+    renderAcademy();
     var box = $("lessonList");
     clear(box);
     WT.store.pruneFixes(); // 원본이 고쳐져 새로 받은 단원에 반영된 고칠 곳은 목록에서 뺀다
@@ -150,6 +151,12 @@
         el("button", { type: "button", id: "btnUndoDone", text: "되돌리기", onclick: function () { WT.store.setDone(nid, false); renderLessons(); } })
       ]));
     }
+    if (state.academyNotice) {
+      var aid = state.academyNotice;
+      state.academyNotice = null;
+      var ait = items.filter(function (x) { return x.id === aid; })[0];
+      if (ait) box.appendChild(el("div", { "class": "msg ok donenote", id: "academyNotice", text: "🏆 「" + lessonTitle(ait) + "」 학원 시험 만점! 트로피 스티커를 받았어요." }));
+    }
     if (!todo.length) box.appendChild(el("div", { "class": "card", text: "지금 공부할 단원이 없어요. 시험 끝난 단원은 아래에 있어요." }));
     todo.forEach(function (it) { box.appendChild(lessonCard(it)); });
     if (done.length) {
@@ -161,11 +168,6 @@
       done.forEach(function (it) { grp.appendChild(lessonCard(it)); });
       box.appendChild(grp);
     }
-  }
-
-  function lessonTitle(it) {
-    var d = it.data;
-    return it.kind === "word" ? "단어 Lesson " + d.lesson + (d.title ? " " + d.title : "") : (d.title || "Chunk Quiz");
   }
 
   function lessonCard(it) {
@@ -189,10 +191,12 @@
         .concat(WT.store.fixesFor(it.id).length ? [el("span", { "class": "badge kind", text: "고칠 곳 " + WT.store.fixesFor(it.id).length + "개" })] : [])),
       el("div", { "class": "meta", text: meta }),
       recentLine(it),
+      academyLine(it),
       el("div", { "class": "row" }, [
         el("button", { type: "button", "class": "primary", text: "시험지 만들기", onclick: function () { openMaker(it.id); } }),
         el("button", { type: "button", "class": "primary", text: "외우기", onclick: function () { WT.study.open(it, { who: ownerLabel(it.data.owner), owner: it.data.owner, onClose: function () { renderLessons(); updateWeakControls(); } }); } }),
         el("button", { type: "button", text: "틀린 단어 표시", onclick: function () { openWeak(it.id); } }),
+        el("button", { type: "button", "class": "acadbtn", text: "📝 학원 점수", onclick: function () { openAcademy(it.id); } }),
         el("button", { type: "button", text: "확인 표", onclick: function () { openCheck(it.id); } }),
         doneAt
           ? el("button", { type: "button", "class": "donebtn", text: "↩ 다시 위로", onclick: function () { WT.store.setDone(it.id, false); renderLessons(); } })
@@ -208,6 +212,141 @@
         } })
       ]))
     ]);
+  }
+
+  // ---------------------------------------------------------------- 학원 시험 점수
+  var FULL = { word: 100, chunk: 20 }; // 기본 만점: 월·수 단어 시험 10문항 × 10점, Chunk Quiz 20점
+  function scoreText(r) { return r.score + "/" + r.total; }
+  function academyLine(it) {
+    var r = WT.store.academyFor(it.id);
+    if (!r) return null;
+    return el("div", { "class": "recent academy" }, [
+      el("b", { text: "📝 학원 점수 " + scoreText(r) + (r.score === r.total ? " 🏆" : "") }),
+      document.createTextNode(" (" + fmtDay(r.date + "T00:00:00") + ")" + (r.wrong && r.wrong.length ? " · 틀린 것 " + r.wrong.length + "개" : "") + (r.memo ? " · " + r.memo : ""))
+    ]);
+  }
+  function todayStr() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+
+  // 학원 점수 적기: 날짜, 점수/만점, 틀린 것 체크(약한 목록에도 넣음), 짧은 메모. 단원마다 하나이고 다시 적으면 고친다.
+  function openAcademy(id) {
+    var it = find(id);
+    if (!it) return;
+    var old = WT.store.academyFor(id);
+    dlgRefresh = id;
+    var body = $("dlgBody");
+    clear(body);
+    $("dlgTitle").textContent = "학원 점수 · " + ownerLabel(it.data.owner) + " · " + lessonTitle(it);
+    var date = el("input", { type: "date", id: "acDate", value: old ? old.date : todayStr() });
+    var score = el("input", { type: "number", id: "acScore", inputmode: "numeric", min: "0", step: "1", "class": "num", value: old ? String(old.score) : "" });
+    var total = el("input", { type: "number", id: "acTotal", inputmode: "numeric", min: "1", step: "1", "class": "num", value: String(old ? old.total : FULL[it.kind] || 100) });
+    var memo = el("input", { type: "text", id: "acMemo", maxlength: "40", placeholder: "예: 대문자 실수", value: old && old.memo ? old.memo : "" });
+    body.appendChild(el("div", { "class": "acform" }, [
+      el("label", { "class": "field" }, ["시험 본 날", date]),
+      el("label", { "class": "field" }, ["점수", el("span", { "class": "acscore" }, [score, " / ", total, " 점"])])
+    ]));
+    body.appendChild(el("p", { "class": "hint", text: it.kind === "word" ? "단어 시험은 한 문제에 10점이에요(10문항, 100점)." : "Chunk Quiz 는 20점 만점이에요. 만점이 다르면 오른쪽 칸을 고쳐요." }));
+    body.appendChild(el("div", { "class": "weakgroup", text: "틀린 것 체크 (체크한 것은 약한 목록에도 들어가요)" }));
+    var wrong = old && Array.isArray(old.wrong) ? old.wrong.slice() : [];
+    var group = null, list = null;
+    var items = WT.store.weakItems(it.data);
+    var multi = items.some(function (x) { return x.group !== items[0].group; });
+    items.forEach(function (x) {
+      if (x.group !== group) {
+        group = x.group;
+        if (multi) body.appendChild(el("div", { "class": "weakgroup sub", text: group }));
+        list = el("div", { "class": "weaklist" });
+        body.appendChild(list);
+      }
+      var cb = el("input", { type: "checkbox", "data-key": x.key });
+      cb.checked = wrong.indexOf(x.key) >= 0;
+      var lab = el("label", { "class": cb.checked ? "on" : "" }, [cb, el("span", { "class": "t" }, [el("span", { "class": "w", text: x.label }), el("span", { "class": "s", text: x.sub })])]);
+      cb.addEventListener("change", function () { lab.classList.toggle("on", cb.checked); });
+      list.appendChild(lab);
+    });
+    body.appendChild(el("label", { "class": "field", style: "margin-top:14px" }, ["메모 (한 줄, 40자까지)", memo]));
+    var out = el("div", { id: "acMsg", role: "status" });
+    body.appendChild(out);
+    var row = el("div", { "class": "row", style: "margin-top:10px" }, [
+      el("button", { type: "button", "class": "primary", id: "btnAcSave", text: "저장", onclick: save })
+    ]);
+    if (old) row.appendChild(el("button", { type: "button", "class": "danger", id: "btnAcDelete", text: "기록 지우기", onclick: function () {
+      if (!window.confirm("이 단원의 학원 점수 기록을 지울까요?")) return;
+      WT.store.setAcademy(id, null);
+      closeDlg();
+    } }));
+    row.appendChild(el("button", { type: "button", text: "취소", onclick: closeDlg }));
+    body.appendChild(row);
+    $("dlg").hidden = false;
+
+    function save() {
+      var s = Number(score.value), t = Number(total.value);
+      if (score.value === "" || !isFinite(s) || s < 0 || Math.floor(s) !== s) { msg(out, "err", "점수를 0 이상의 정수로 적어 주세요."); return; }
+      if (!isFinite(t) || t < 1 || Math.floor(t) !== t) { msg(out, "err", "만점을 1 이상의 정수로 적어 주세요."); return; }
+      if (s > t) { msg(out, "err", "점수가 만점(" + t + "점)보다 커요."); return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date.value)) { msg(out, "err", "시험 본 날을 골라 주세요."); return; }
+      var keys = Array.prototype.map.call(body.querySelectorAll("input[type=checkbox]:checked"), function (c) { return c.getAttribute("data-key"); });
+      keys.forEach(function (k) { WT.store.setWeak(id, k, true); }); // 틀린 것은 약한 목록에도 넣는다(체크를 풀어도 약한 목록에서는 빼지 않음)
+      var full = s === t;
+      var trophy = !!(old && old.trophy);
+      var got = null;
+      if (full && !trophy) { got = WT.fun.award(it.data.owner, "학원 시험 만점 · " + lessonTitle(it), "🏆"); trophy = true; }
+      WT.store.setAcademy(id, { date: date.value, score: s, total: t, memo: memo.value.trim().slice(0, 40), wrong: keys,
+        owner: it.data.owner, title: lessonTitle(it), kind: it.kind, trophy: trophy });
+      closeDlg();
+      if (got) {
+        state.academyNotice = it.id;
+        renderLessons();
+        WT.fun.sound("done");
+        setTimeout(function () { WT.fun.sound("sticker"); }, 450);
+        WT.fun.confetti("big");
+      }
+    }
+  }
+
+  // 단원 화면 위의 「학원 점수 기록」: 아이마다 날짜·단원·점수·메모 표와 단어/chunk 평균
+  function renderAcademy() {
+    var box = $("academyBox");
+    clear(box);
+    var all = WT.store.academyAll();
+    var lessons = WT.store.list();
+    var mc = multiChild();
+    var conn = WT.store.getConnection();
+    var rows = Object.keys(all).map(function (id) {
+      var r = all[id];
+      if (!r || typeof r.score !== "number") return null;
+      var it = lessons.filter(function (x) { return x.id === id; })[0];
+      return Object.assign({ id: id, title: it ? lessonTitle(it) : (r.title || id), owner: it ? it.data.owner : r.owner, kind: it ? it.kind : r.kind }, r);
+    }).filter(Boolean);
+    if (conn) rows = rows.filter(function (r) { return r.owner === WT.sync.CHILD_OWNER[mc ? mc.active : conn.child]; });
+    if (!rows.length) return;
+    var owners = [];
+    rows.forEach(function (r) { if (owners.indexOf(r.owner) < 0) owners.push(r.owner); });
+    owners.sort().forEach(function (owner) {
+      var mine = rows.filter(function (r) { return r.owner === owner; }).sort(function (a, b) { return (b.date + b.at).localeCompare(a.date + a.at); });
+      var avg = function (kind) {
+        var xs = mine.filter(function (r) { return r.kind === kind; });
+        if (!xs.length) return null;
+        var full = FULL[kind];
+        var v = xs.reduce(function (n, r) { return n + r.score / r.total * full; }, 0) / xs.length;
+        return (kind === "word" ? "단어 시험 평균 " : "Chunk Quiz 평균 ") + (Math.round(v * 10) / 10) + "/" + full + "점 (" + xs.length + "번)";
+      };
+      var avgs = [avg("word"), avg("chunk")].filter(Boolean);
+      var table = el("table", { "class": "ct actable" }, [
+        el("thead", {}, [el("tr", {}, [el("th", { text: "날짜" }), el("th", { text: "단원" }), el("th", { text: "점수" }), el("th", { text: "메모" })])]),
+        el("tbody", {}, mine.map(function (r) {
+          return el("tr", {}, [
+            el("td", { text: fmtDay(r.date + "T00:00:00") }),
+            el("td", { text: r.title }),
+            el("td", { "class": "sc", text: scoreText(r) + (r.score === r.total ? " 🏆" : "") }),
+            el("td", { text: (r.wrong && r.wrong.length ? "틀린 것 " + r.wrong.length + "개" : "") + (r.memo ? (r.wrong && r.wrong.length ? " · " : "") + r.memo : "") })
+          ]);
+        }))
+      ]);
+      box.appendChild(el("details", { "class": "card acboard", "data-owner": owner }, [
+        el("summary", {}, [el("span", { "class": "stitle", text: "📊 " + ownerLabel(owner) + " 학원 점수 " + mine.length + "개" }), el("span", { "class": "srecent empty", text: avgs.join(" · ") })]),
+        table
+      ]));
+    });
   }
 
   // 단원 카드에 최근 화면 시험 점수(최대 3개)를 보여 준다.
@@ -723,8 +862,15 @@
     $("dlg").hidden = false;
   }
 
+  var dlgRefresh = null; // 학원 점수 창을 닫으면 단원 목록을 다시 그린다
   function closeDlg() {
     $("dlg").hidden = true;
+    if (dlgRefresh) {
+      var rid = dlgRefresh;
+      dlgRefresh = null;
+      renderLessons();
+      if (state.lessonId === rid) updateWeakControls();
+    }
     if (!weakDlgId) return;
     var id = weakDlgId;
     weakDlgId = null;

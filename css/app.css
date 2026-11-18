@@ -180,6 +180,24 @@ html[data-theme] button.k-space,html[data-theme] button.k-enter,html[data-theme]
 html[data-theme] button.key{border-radius:12px;background:var(--bg);color:var(--ink);border:1px solid var(--line)}
 html[data-theme] button.k-enter,html[data-theme] button.k-shift.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
 
+/* 학원 시험 점수 */
+.acform{display:flex;flex-wrap:wrap;gap:12px 20px}
+.acform .field{margin:0}
+.acform input,#acMemo{display:block;margin-top:4px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:18px/1.3 inherit}
+.acscore{display:flex;align-items:center;gap:6px;margin-top:4px;color:var(--ink);font-size:18px}
+.acscore input{margin-top:0}
+input.num{width:5.5em;text-align:right}
+#acMemo{width:100%}
+.weakgroup.sub{font-size:14px;color:var(--sub);margin-top:10px}
+.recent.academy{color:var(--ink)}
+.recent.academy b{color:var(--brand)}
+button.acadbtn{border-color:var(--brand);color:var(--brand)}
+html[data-theme] button.acadbtn{color:var(--brand)}
+.acboard table{margin-top:10px}
+.acboard summary{justify-content:space-between;flex-wrap:wrap;gap:4px 12px;color:var(--ink)}
+.acboard .srecent{font-size:13px;color:var(--sub);font-weight:400}
+.actable td.sc{font-weight:700;white-space:nowrap}
+
 /* 시험 끝난 단원 */
 .donegroup{margin:22px 0 14px;border-top:2px dashed var(--line);padding-top:12px}
 .donegroup > summary{font-size:17px;font-weight:700;color:var(--sub);padding:6px 4px;margin-bottom:8px}

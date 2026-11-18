@@ -256,7 +256,58 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   check((await topTitles()).indexOf(wTitle) >= 0 && /시험 끝난 단원 1개/.test(await T("#doneGroup > summary")), "펼친 묶음의 「다시 위로」로도 올릴 수 있음");
   await clickCard(cTitle, "↩ 다시 위로");
 
-  // 11) 기본으로 되돌리기
+  // 11) 학원 시험 점수: 단원 카드 버튼, 점수·만점·날짜·틀린 것·메모, 모아 보기, 만점 트로피, 백업
+  var acOpen = async function (t) { await clickCard(t, "📝 학원 점수"); await sleep(100); };
+  var setVal = function (id, v) { return ev("(function(){var i=document.getElementById(" + JSON.stringify(id) + ");i.value=" + JSON.stringify(v) + ";i.dispatchEvent(new Event('input',{bubbles:true}))})()"); };
+  var cardOf = function (t) { return ev("Array.from(document.querySelectorAll('#lessonList .card.lesson')).filter(function(c){return c.textContent.indexOf(" + JSON.stringify(t) + ")>=0})[0].textContent"); };
+  await acOpen(wTitle);
+  check(!(await ev("document.getElementById('dlg').hidden")) && /학원 점수/.test(await T("#dlgTitle")) && (await ev("document.getElementById('acTotal').value")) === "100" && /^\d{4}-\d{2}-\d{2}$/.test(await ev("document.getElementById('acDate').value")), "「📝 학원 점수」: 창이 열리고 단어 시험 만점 100점, 날짜는 오늘로 채워짐");
+  await click("#btnAcSave");
+  check(/점수를 0 이상의 정수로/.test(await T("#acMsg")), "점수를 안 적고 저장하면 안내");
+  await setVal("acScore", "120");
+  await click("#btnAcSave");
+  check(/만점\(100점\)보다 커요/.test(await T("#acMsg")), "만점보다 큰 점수는 저장하지 않음");
+  var wk = await ev("document.querySelector('#dlgBody input[type=checkbox]').getAttribute('data-key')");
+  await ev("(function(){var c=document.querySelector('#dlgBody input[type=checkbox]');c.checked=true;c.dispatchEvent(new Event('change'))})()");
+  await setVal("acScore", "90");
+  await setVal("acMemo", "대문자 실수");
+  await shot("f13_학원점수_적기");
+  await click("#btnAcSave");
+  check((await ev("document.getElementById('dlg').hidden")) && /📝 학원 점수 90\/100/.test(await cardOf(wTitle)) && /틀린 것 1개 · 대문자 실수/.test(await cardOf(wTitle)), "저장하면 창이 닫히고 단원 카드에 「📝 학원 점수 90/100 … 틀린 것 1개 · 대문자 실수」");
+  check(await ev("WT.store.isWeak(WT.store.list().filter(function(x){return x.kind==='word'})[0].id," + JSON.stringify(wk) + ")"), "체크한 틀린 것은 약한 목록에도 들어감");
+  check(/학원 점수 1개/.test(await ev("document.getElementById('academyBox').textContent")) && /단어 시험 평균 90\/100점 \(1번\)/.test(await ev("document.getElementById('academyBox').textContent")), "단원 화면 위 「학원 점수 기록」에 1개, 단어 시험 평균 90/100점");
+  var bStick = await stickerN("B");
+  await acOpen(wTitle);
+  check((await ev("document.getElementById('acScore').value")) === "90" && (await ev("document.querySelector('#dlgBody input[data-key=\"" + wk.replace(/"/g, '\\"') + "\"]').checked")) && (await ev("document.getElementById('acMemo').value")) === "대문자 실수", "다시 열면 적어 둔 점수·틀린 것·메모가 채워져 있음(고치기)");
+  await setVal("acScore", "100");
+  await click("#btnAcSave");
+  await sleep(150);
+  check((await stickerN("B")) === bStick + 1 && (await ev("WT.fun.stickers('B').slice(-1)[0].s")) === "🏆" && /만점! 트로피 스티커/.test(await T("#academyNotice")), "학원 시험 만점이면 🏆 스티커를 받고 안내가 나옴");
+  check(/100\/100 🏆/.test(await cardOf(wTitle)), "카드 점수에 🏆 표시");
+  await shot("f14_학원점수_만점");
+  await acOpen(wTitle);
+  await click("#btnAcSave");
+  check((await stickerN("B")) === bStick + 1, "같은 단원을 만점으로 다시 저장해도 트로피는 한 번만");
+  await acOpen(cTitle);
+  check((await ev("document.getElementById('acTotal').value")) === "20" && (await ev("document.querySelectorAll('#dlgBody .weakgroup.sub').length")) === 2, "Chunk Quiz 는 만점 20점, 틀린 것 체크는 Key Vocabulary·Chunk 문장으로 나뉨");
+  await setVal("acScore", "18");
+  await click("#btnAcSave");
+  var boardTxt = await ev("document.getElementById('academyBox').textContent");
+  check(/Chunk Quiz 평균 18\/20점 \(1번\)/.test(boardTxt) && (await ev("document.querySelectorAll('#academyBox details.acboard').length")) === 2, "아이별로 학원 점수 기록이 따로 모이고, chunk 평균 18/20점");
+  await ev("document.querySelectorAll('#academyBox details').forEach(function(d){d.open=true})");
+  await shot("f15_학원점수_모아보기");
+  var bk2 = await ev("WT.store.exportAll()");
+  check(JSON.parse(bk2).settings.academy && Object.keys(JSON.parse(bk2).settings.academy).length === 2, "학원 점수가 백업에 들어감");
+  await acOpen(cTitle);
+  await setVal("acScore", "19");
+  await click("#btnAcSave");
+  await ev("WT.store.importText(" + JSON.stringify(bk2) + ",'옛 백업')");
+  check(/19\/20/.test(await ev("WT.store.academyFor(WT.store.list().filter(function(x){return x.kind==='chunk'})[0].id).score+'/20'")), "옛 백업을 가져와도 나중에 고친 점수(19)가 남음");
+  await acOpen(cTitle);
+  await click("#btnAcDelete");
+  check(!/📝 학원 점수 \d/.test(await cardOf(cTitle)) && !(await ev("WT.store.academyFor(WT.store.list().filter(function(x){return x.kind==='chunk'})[0].id)")), "「기록 지우기」로 지울 수 있음(버튼 글자와 구분하려고 점수 숫자까지 확인)");
+
+  // 12) 기본으로 되돌리기
   await tab("settings");
   await pick("_", "basic");
   check((await theme()) === null, "「기본」을 고르면 원래 모양으로 돌아감");
