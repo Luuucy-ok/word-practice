@@ -266,6 +266,14 @@ html[data-theme] .seg button.on{background:var(--brand);color:var(--brand-ink)}
 .mkmore > summary{font-size:14px;min-height:36px}
 .mkmore[open]{padding-top:4px}
 
+/* 누적 시험지 버튼(종류 머리말 오른쪽)과 고르기 창 */
+h2.kindhead .kn{margin-left:auto}
+h2.kindhead button.cumbtn{min-height:36px;padding:0 12px;font-size:13px;font-weight:700;border:1px solid var(--kcol);color:var(--kcol);background:var(--card);border-radius:999px;box-shadow:none}
+html[data-theme] h2.kindhead button.cumbtn{font-family:"Malgun Gothic",sans-serif;border:1px solid var(--kcol);color:var(--kcol);background:var(--card);border-radius:999px;box-shadow:none}
+.cumlist{margin-bottom:6px}
+.cumlist label.on{background:var(--bg);border-color:var(--brand)}
+.seg.cumcount button,.seg.cumowner button{min-width:64px}
+
 /* 학원 시험 점수 */
 .acform{display:flex;flex-wrap:wrap;gap:12px 20px}
 .acform .field{margin:0}

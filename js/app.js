@@ -57,6 +57,7 @@
   }
 
   function find(id) {
+    if (state.virtual && state.virtual.id === id) return state.virtual; // 누적 시험지용으로 합친 단원
     return WT.store.list().filter(function (x) { return x.id === id; })[0];
   }
 
@@ -164,14 +165,17 @@
     }
     if (!todo.length) box.appendChild(el("div", { "class": "card", text: "지금 공부할 단원이 없어요. 시험 끝난 단원은 아래에 있어요." }));
     // 종류마다 큰 머리말을 두어 단어 시험과 Chunk 시험을 한눈에 나눈다(카드는 #lessonList 바로 아래에 둔다).
+    // 같은 아이 단원이 2개 이상이면 머리말에 「📚 누적 시험지」 버튼을 둔다(모두 시험 끝이어도 머리말은 보임).
     ["word", "chunk"].forEach(function (kind) {
       var mine = todo.filter(function (it) { return it.kind === kind; });
-      if (!mine.length) return;
+      var cum = cumulativeOwners(items, kind).length > 0;
+      if (!mine.length && !cum) return;
       box.appendChild(el("h2", { "class": "kindhead k-" + kind }, [
         el("span", { "class": "ki", text: KIND[kind].icon }),
         el("span", { text: KIND[kind].name }),
         el("span", { "class": "kday", text: KIND[kind].day }),
-        el("span", { "class": "kn", text: mine.length + "개" })
+        el("span", { "class": "kn", text: mine.length ? mine.length + "개" : "모두 시험 끝" }),
+        cum ? el("button", { type: "button", "class": "cumbtn", "data-kind": kind, text: "📚 누적 시험지", onclick: function () { openCumulative(kind); } }) : null
       ]));
       mine.forEach(function (it) { box.appendChild(lessonCard(it)); });
     });
@@ -296,6 +300,149 @@
       exp
     ]);
     return card;
+  }
+
+  // ---------------------------------------------------------------- 누적 시험지
+  // 같은 아이의 여러 단원을 합쳐 한 장으로 낸다. 단어는 전체 쓰기, chunk 는 범위 전체 형식.
+  // 문장 규칙(문장 출처, 해석 필수)이나 Fill 힌트가 다른 단원은 섞지 않는다(아이마다 반 규칙이 다름).
+  // 문제 수를 고르면 약한 항목(틀린 것)을 먼저 넣고 나머지는 무작위로 채운다. 태블릿에서 틀린 것은 원래 단원의 약한 목록에 들어간다.
+  var CUM_COUNTS = [10, 20, 30, 0]; // 0 = 전부
+
+  // 이 종류에서 단원이 2개 이상인 아이들
+  function cumulativeOwners(items, kind) {
+    var n = {};
+    items.forEach(function (it) { if (it.kind === kind) n[it.data.owner] = (n[it.data.owner] || 0) + 1; });
+    return Object.keys(n).filter(function (o) { return n[o] >= 2; }).sort();
+  }
+  function lessonNums(it) { return it.kind === "word" ? String(it.data.lesson) : lessonNo(it); }
+  function ruleKey(it) {
+    var d = it.data;
+    return it.kind === "word" ? (d.sentence_sources || []).slice().sort().join(",") + "|" + !!d.require_sentence_ko : String(d.hint);
+  }
+  // 고른 단원의 항목(약한 표시 포함) → [{ key, src, weak, part: "w"|"v"|"c", obj }]
+  function cumulativeItems(lessons) {
+    var seen = {}, out = [];
+    lessons.forEach(function (it) {
+      var d = WT.store.withWeak(it); // 기기의 약한 표시를 항목의 weak 로 옮긴 복사본
+      if (it.kind === "word") {
+        (d.words || []).forEach(function (w) { var k = w.word; if (seen[k]) return; seen[k] = 1; out.push({ key: k, src: it.id, weak: !!w.weak, part: "w", obj: w }); });
+      } else {
+        (d.vocab || []).forEach(function (v) { if (!(v.colloc && /\{.+?\}/.test(v.colloc))) return; var k = "v|" + v.word; if (seen[k]) return; seen[k] = 1; out.push({ key: k, src: it.id, weak: !!v.weak, part: "v", obj: v }); });
+        (d.chunks || []).forEach(function (c) { var k = "c|" + c.sentence; if (seen[k]) return; seen[k] = 1; out.push({ key: k, src: it.id, weak: !!c.weak, part: "c", obj: c }); });
+      }
+    });
+    return out;
+  }
+  // 약한 것 먼저, 나머지는 무작위로 n 개(0 이면 전부). 고른 뒤에는 원래 순서(단원·항목 순)로 둔다.
+  function pickCumulative(list, n) {
+    if (!n || n >= list.length) return list.slice();
+    var rng = new WT.util.Rng(WT.util.newSeed());
+    var weak = rng.shuffle(list.filter(function (x) { return x.weak; }));
+    var rest = rng.shuffle(list.filter(function (x) { return !x.weak; }));
+    var chosen = weak.concat(rest).slice(0, n);
+    return list.filter(function (x) { return chosen.indexOf(x) >= 0; });
+  }
+  // 합친 단원(시험지 탭에 넘길 가상 단원)
+  function buildCumulative(kind, lessons, picked) {
+    var first = lessons[0].data;
+    var nums = lessons.map(lessonNums).join("·");
+    var keyMap = {};
+    picked.forEach(function (x) { keyMap[x.key] = x.src; });
+    var data;
+    if (kind === "word") {
+      data = { kind: "word", owner: first.owner, book: first.book, class_code: first.class_code,
+        sentence_sources: first.sentence_sources.slice(), require_sentence_ko: !!first.require_sentence_ko,
+        verified: lessons.every(function (it) { return !!it.data.verified; }),
+        lesson: nums, title: "누적 복습", words: picked.map(function (x) { return x.obj; }) };
+    } else {
+      data = { kind: "chunk", owner: first.owner, hint: first.hint, class_code: first.class_code,
+        verified: lessons.every(function (it) { return !!it.data.verified; }),
+        title: "Chunk Quiz 누적 복습 (" + nums + ")",
+        vocab: picked.filter(function (x) { return x.part === "v"; }).map(function (x) { return x.obj; }),
+        chunks: picked.filter(function (x) { return x.part === "c"; }).map(function (x) { return x.obj; }) };
+    }
+    return { id: "cum|" + kind + "|" + Date.now(), kind: kind, data: data, synced: true, virtual: true, keyMap: keyMap,
+      srcIds: lessons.map(function (it) { return it.id; }), count: picked.length };
+  }
+
+  function openCumulative(kind) {
+    var all = WT.store.list();
+    var mc = multiChild();
+    if (mc) all = all.filter(function (x) { return x.data.owner === WT.sync.CHILD_OWNER[mc.active]; });
+    var owners = cumulativeOwners(all, kind);
+    if (!owners.length) return;
+    var st = state.cum = state.cum && state.cum.kind === kind ? state.cum : { kind: kind, owner: owners[0], n: 20, checked: null };
+    if (owners.indexOf(st.owner) < 0) st.owner = owners[0];
+    var body = $("dlgBody");
+    clear(body);
+    $("dlgTitle").textContent = "📚 누적 시험지 · " + KIND[kind].name;
+    body.appendChild(el("p", { "class": "hint", text: "여러 단원을 한 장으로 묶어 복습해요. " + (kind === "word" ? "모든 단어를 직접 쓰는 「전체 쓰기」" : "「범위 전체」") + " 형식이고, 틀린 항목을 먼저 넣어요. 태블릿에서 풀면 틀린 것은 원래 단원의 약한 목록에 들어가요." }));
+    if (owners.length > 1) {
+      body.appendChild(el("div", { "class": "seg cumowner", role: "group", "aria-label": "아이" }, owners.map(function (o) {
+        return el("button", { type: "button", "class": o === st.owner ? "on" : "", "data-owner": o, text: ownerLabel(o), onclick: function () { st.owner = o; st.checked = null; openCumulative(kind); } });
+      })));
+    }
+    var mine = all.filter(function (it) { return it.kind === kind && it.data.owner === st.owner; });
+    mine.sort(function (a, b) { return String(lessonNums(a)).localeCompare(String(lessonNums(b)), "ko", { numeric: true }); });
+    if (!st.checked) { st.checked = {}; mine.forEach(function (it) { if (WT.store.doneAt(it.id)) st.checked[it.id] = 1; }); }
+    body.appendChild(el("div", { "class": "weakgroup", text: "넣을 단원 (시험 끝난 단원은 처음부터 체크돼 있어요)" }));
+    var list = el("div", { "class": "weaklist cumlist" });
+    mine.forEach(function (it) {
+      var cb = el("input", { type: "checkbox", "data-id": it.id });
+      cb.checked = !!st.checked[it.id];
+      var weakN = WT.store.weakCount(it);
+      var lab = el("label", { "class": cb.checked ? "on" : "" }, [cb, el("span", { "class": "t" }, [
+        el("span", { "class": "w", text: lessonTitle(it) }),
+        el("span", { "class": "s", text: (WT.store.doneAt(it.id) ? "✅ 시험 끝 " + fmtDay(WT.store.doneAt(it.id)) : "공부 중") + (weakN ? " · 🔁 틀린 항목 " + weakN + "개" : "") })
+      ])]);
+      cb.addEventListener("change", function () { if (cb.checked) st.checked[it.id] = 1; else delete st.checked[it.id]; lab.classList.toggle("on", cb.checked); summary(); });
+      list.appendChild(lab);
+    });
+    body.appendChild(list);
+    body.appendChild(el("div", { "class": "weakgroup", text: "문제 수 (틀린 항목을 먼저 넣어요)" }));
+    var seg = el("div", { "class": "seg cumcount", role: "group", "aria-label": "문제 수" });
+    CUM_COUNTS.forEach(function (n) {
+      seg.appendChild(el("button", { type: "button", "class": n === st.n ? "on" : "", "data-n": String(n), text: n ? n + "개" : "전부", onclick: function () {
+        st.n = n;
+        Array.prototype.forEach.call(seg.querySelectorAll("button"), function (b) { b.classList.toggle("on", Number(b.getAttribute("data-n")) === n); });
+        summary();
+      } }));
+    });
+    body.appendChild(seg);
+    var sum = el("p", { "class": "hint", id: "cumSummary", style: "margin-top:10px" });
+    body.appendChild(sum);
+    var out = el("div", { id: "cumMsg", role: "status" });
+    body.appendChild(out);
+    body.appendChild(el("div", { "class": "row", style: "margin-top:10px" }, [
+      el("button", { type: "button", "class": "primary", id: "btnCumMake", text: "📚 누적 시험지 만들기", onclick: make }),
+      el("button", { type: "button", text: "취소", onclick: function () { $("dlg").hidden = true; } })
+    ]));
+    summary();
+    $("dlg").hidden = false;
+
+    function chosen() { return mine.filter(function (it) { return st.checked[it.id]; }); }
+    function summary() {
+      var ls = chosen();
+      if (!ls.length) { sum.textContent = "단원을 하나 이상 골라 주세요."; return; }
+      var items = cumulativeItems(ls);
+      var w = items.filter(function (x) { return x.weak; }).length;
+      var n = st.n && st.n < items.length ? st.n : items.length;
+      sum.textContent = "고른 단원 " + ls.length + "개 · " + (kind === "word" ? "단어 " : "항목 ") + items.length + "개(틀린 것 " + w + "개) → " + n + "개를 내요";
+    }
+    function make() {
+      var ls = chosen();
+      if (!ls.length) { msg(out, "err", "단원을 하나 이상 골라 주세요."); return; }
+      var rules = {};
+      ls.forEach(function (it) { rules[ruleKey(it)] = 1; });
+      if (Object.keys(rules).length > 1) {
+        msg(out, "err", kind === "word" ? "문장 규칙(문장 출처, 해석 필수)이 다른 단원은 함께 낼 수 없어요. 같은 규칙의 단원만 골라 주세요." : "Fill in 첫 글자 힌트가 다른 단원은 함께 낼 수 없어요.");
+        return;
+      }
+      var v = buildCumulative(kind, ls, pickCumulative(cumulativeItems(ls), st.n));
+      state.virtual = v;
+      $("dlg").hidden = true;
+      openMaker(v.id);
+    }
   }
 
   // ---------------------------------------------------------------- 학원 시험 점수
@@ -979,10 +1126,17 @@
     var d = it.data;
     $("makeEmpty").hidden = true;
     $("makePanel").hidden = false;
-    $("makeTitle").textContent = KIND[it.kind].icon + " " + (it.kind === "word" ? "Lesson " + d.lesson + (d.title ? " " + d.title : "") : (d.title || "Chunk Quiz")) + " · " + ownerLabel(d.owner);
+    $("makeTitle").textContent = (it.virtual ? "📚 " : KIND[it.kind].icon + " ") + (it.kind === "word" ? "Lesson " + d.lesson + (d.title ? " " + d.title : "") : (d.title || "Chunk Quiz")) + " · " + ownerLabel(d.owner) + (it.virtual ? " · " + it.count + "개" : "");
     $("optsWord").hidden = it.kind !== "word";
     $("optsChunk").hidden = it.kind !== "chunk";
     $("cHintBox").hidden = it.kind !== "chunk";
+    // 누적 시험지는 전체 쓰기·범위 전체로만 내고, 약한 것만·틀린 단어 표시는 원래 단원에서 한다.
+    var v = !!it.virtual;
+    Array.prototype.forEach.call(document.querySelectorAll(".seg[data-for=wMode], .seg[data-for=cMode]"), function (g) { g.hidden = v; });
+    $("wWeak").closest(".chipcheck").hidden = v;
+    $("cWeak").closest(".chipcheck").hidden = v;
+    $("btnWeakEdit").hidden = v;
+    if (!v && state.virtual) state.virtual = null; // 보통 단원을 열면 합친 단원은 버린다
     $("optSeed").value = "";
     $("optClass").value = d.class_code || "";
     $("makeInfo").hidden = true;
@@ -1131,7 +1285,21 @@
       owner: it.data.owner,
       onGraded: function (g, q) {
         // 틀린 것은 약한 목록에 넣고, 약한 항목을 연속으로 맞히면 빼고, 점수를 기록한다.
-        var summary = WT.store.applyGrading(L.lessonId, g.byKey);
+        var summary;
+        if (it.virtual) {
+          // 누적 시험지: 항목마다 원래 단원을 찾아 그 단원의 약한 목록에 반영한다.
+          var bySrc = {};
+          Object.keys(g.byKey).forEach(function (k) {
+            var src = it.keyMap[k];
+            if (!src) return;
+            (bySrc[src] = bySrc[src] || {})[k] = g.byKey[k];
+          });
+          summary = { added: [], again: [], cleared: [], progress: [] };
+          Object.keys(bySrc).forEach(function (src) {
+            var r = WT.store.applyGrading(src, bySrc[src]);
+            ["added", "again", "cleared", "progress"].forEach(function (f) { summary[f] = summary[f].concat(r[f]); });
+          });
+        } else summary = WT.store.applyGrading(L.lessonId, g.byKey);
         WT.store.addResult({
           at: new Date().toISOString(), lessonId: L.lessonId, owner: it.data.owner, title: q.title, kind: q.kind, mode: q.mode,
           seed: q.seed, weakOnly: !!L.weakOnly, score: g.score, total: g.total,
