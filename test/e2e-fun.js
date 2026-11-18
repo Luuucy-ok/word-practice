@@ -105,7 +105,22 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   check(await ev("document.getElementById('soundOn').checked"), "효과음은 처음에 켜져 있음");
   await tab("lessons");
   check(/스티커 0개/.test(await T("#stickerBox")) && /끝내면 받아요/.test(await T("#stickerBox")), "단원 화면 위에 스티커 판(0개, 받는 방법 안내)");
+  // 1-2) 아이용 단원 화면: 종류별 구역, 큰 제목, 부모님용 정보는 접어 둠
+  var heads = await ev("Array.from(document.querySelectorAll('#lessonList > h2.kindhead')).map(function(h){return h.className+'|'+h.textContent}).join(' / ')");
+  check(/k-word\|📘단어 시험월·수1개/.test(heads) && /k-chunk\|🧩Chunk 시험금1개/.test(heads) && heads.indexOf("k-word") < heads.indexOf("k-chunk"), "단원 화면이 「📘 단어 시험 · 월·수」와 「🧩 Chunk 시험 · 금」 구역으로 나뉨(단어 먼저)");
+  var order = await ev("Array.from(document.querySelectorAll('#lessonList > *')).map(function(n){return n.tagName==='H2'?'H':(n.classList.contains('k-word')?'w':(n.classList.contains('k-chunk')?'c':'?'))}).join('')");
+  check(order === "HwHc", "각 구역 머리말 아래에 그 종류의 카드가 옴(" + order + ")");
+  var wCard = "Array.from(document.querySelectorAll('#lessonList .card.lesson.k-word'))[0]";
+  var vis = await ev(wCard + ".innerText");
+  check(/📘 단어 시험/.test(vis) && /Lesson 7/.test(vis) && !/교재 대조|부모님이 올림|문장 출처|해석 필수/.test(vis), "카드에는 종류·Lesson 번호가 크게 보이고, 교재 대조·단원 구성 같은 부모님용 정보는 보이지 않음");
+  check((await ev(wCard + ".querySelector('.lmain').textContent")) === "Lesson " + W.lesson && parseFloat(await ev("getComputedStyle(" + wCard + ".querySelector('.lmain')).fontSize")) >= 28, "Lesson 번호가 큰 글씨(28px 이상)");
+  check((await ev("Array.from(" + wCard + ".querySelectorAll('.mainbtns button')).map(function(b){return b.textContent}).join()")) === "외우기,시험지 만들기", "큰 버튼은 「외우기」「시험지 만들기」 두 개");
+  check((await ev("Array.from(" + wCard + ".querySelectorAll('.parentbox button')).map(function(b){return b.textContent}).join()")) === "확인 표,삭제" && !(await ev(wCard + ".querySelector('.parentbox').open")), "「확인 표」「삭제」는 접힌 「⋯ 부모님용」 안에 있음");
+  await ev(wCard + ".querySelector('.parentbox > summary').click()");
+  check(/교재 대조/.test(await ev(wCard + ".innerText")) && /문장 출처/.test(await ev(wCard + ".innerText")), "「⋯ 부모님용」을 누르면 교재 대조·단원 구성이 보임");
+  check((await ev("(function(){var a=document.getElementById('lessonList'),b=document.getElementById('parentArea');return !!(a.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING)})()")) && !(await ev("document.getElementById('importBox').open")), "단원 파일 가져오기·받기 상태는 단원 목록 아래 「부모님용」으로 옮기고, 단원이 있으면 접어 둠");
   await shot("f0_기본");
+  await ev(wCard + ".querySelector('.parentbox').open=false");
 
   // 2) 테마 고르기 → 바로 바뀌고 새로 고침해도 남음
   for (var name of ["pastel", "berry", "star"]) {
@@ -260,6 +275,7 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   var acOpen = async function (t) { await clickCard(t, "📝 학원 점수"); await sleep(100); };
   var setVal = function (id, v) { return ev("(function(){var i=document.getElementById(" + JSON.stringify(id) + ");i.value=" + JSON.stringify(v) + ";i.dispatchEvent(new Event('input',{bubbles:true}))})()"); };
   var cardOf = function (t) { return ev("Array.from(document.querySelectorAll('#lessonList .card.lesson')).filter(function(c){return c.textContent.indexOf(" + JSON.stringify(t) + ")>=0})[0].textContent"); };
+  check(/학원 점수 0개/.test(await ev("document.getElementById('academyBox').textContent")) && /「📝 학원 점수」로 적어요/.test(await ev("document.getElementById('academyBox').textContent")), "점수를 아직 안 적었어도 「📊 학원 점수 0개」 칸과 적는 방법이 보임");
   await acOpen(wTitle);
   check(!(await ev("document.getElementById('dlg').hidden")) && /학원 점수/.test(await T("#dlgTitle")) && (await ev("document.getElementById('acTotal').value")) === "100" && /^\d{4}-\d{2}-\d{2}$/.test(await ev("document.getElementById('acDate').value")), "「📝 학원 점수」: 창이 열리고 단어 시험 만점 100점, 날짜는 오늘로 채워짐");
   await click("#btnAcSave");

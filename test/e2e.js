@@ -77,7 +77,7 @@ function getJson(url) {
   check(/새로 넣음: 1개/.test(m3), "한선 chunk 가져오기");
   var m4 = await importText(pick(/^B_단어.*L07/));
   check(/덮어씀: 1개/.test(m4), "같은 단원을 다시 넣으면 덮어씀");
-  var list = await ev("document.getElementById('lessonList').innerText");
+  var list = await ev("document.getElementById('lessonList').textContent"); // 교재 대조 표시는 접힌 「부모님용」 안
   check(/아이 B/.test(list) && /아이 A/.test(list) && /교재 대조 완료/.test(list), "목록에 대상과 검증 상태가 보임");
   await shot("02_단원목록");
 

@@ -65,7 +65,7 @@ function getJson(url) {
   var msg = await T("#syncMsg");
   var connMsg = await T("#connectMsg");
   check(/연결했어요\. 단원 \d+개를 받았어요/.test(msg), "실제 저장소에서 단원을 받음: " + (msg.split("\n")[0] || connMsg.split("\n")[0]));
-  var list = await T("#lessonList");
+  var list = await ev("document.getElementById('lessonList').textContent");
   var n = (list.match(/부모님이 올림/g) || []).length;
   check(n >= 1, "목록에 받은 단원이 보임(" + n + "개)");
   if (both) {
@@ -73,7 +73,7 @@ function getJson(url) {
     check(list.indexOf("아이 B") < 0, "처음에는 아이 A 단원만 보임");
     await ev("window.confirm=function(){return true}; document.getElementById('btnActiveB').click()");
     await sleep(500);
-    var listB = await T("#lessonList");
+    var listB = await ev("document.getElementById('lessonList').textContent");
     var nB = (listB.match(/부모님이 올림/g) || []).length;
     check(nB >= 1 && listB.indexOf("아이 A") < 0, "아이 B 로 바꾸면 아이 B 단원(" + nB + "개)만 보임");
     check(n + nB === 12, "두 아이 단원이 합쳐서 12개(" + n + " + " + nB + ")");

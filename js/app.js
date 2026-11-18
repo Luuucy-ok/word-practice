@@ -131,12 +131,13 @@
     if (mc) items = items.filter(function (x) { return x.data.owner === WT.sync.CHILD_OWNER[mc.active]; });
     if (!items.length) {
       box.appendChild(el("div", { "class": "card", text: WT.store.getConnection()
-        ? "아직 받은 단원이 없어요. 부모님이 단원을 올리면 「지금 새로 받기」로 받을 수 있어요."
-        : "아직 가져온 단원이 없어요. 부모님께 받은 연결 링크를 열면 단원이 자동으로 들어와요. 파일이 있으면 위의 「단원 파일을 직접 가져오기」를 눌러 넣을 수 있어요." }));
+        ? "아직 받은 단원이 없어요. 부모님이 단원을 올리면 아래 「지금 새로 받기」로 받을 수 있어요."
+        : "아직 가져온 단원이 없어요. 부모님께 받은 연결 링크를 열면 단원이 자동으로 들어와요. 파일이 있으면 아래의 「단원 파일을 직접 가져오기」를 눌러 넣을 수 있어요." }));
       return;
     }
+    // 단어 시험(월·수) 먼저, 그다음 Chunk 시험(금). 그 안에서는 아이, 단원 번호 순서.
     items.sort(function (a, b) {
-      return (a.data.owner + a.kind + String(a.data.lesson || a.data.title)).localeCompare(b.data.owner + b.kind + String(b.data.lesson || b.data.title), "ko", { numeric: true });
+      return ((a.kind === "word" ? "0" : "1") + a.data.owner + String(a.data.lesson || a.data.title)).localeCompare((b.kind === "word" ? "0" : "1") + b.data.owner + String(b.data.lesson || b.data.title), "ko", { numeric: true });
     });
     // 「시험 끝」으로 표시한 단원은 맨 아래의 접힌 묶음으로 보낸다(최근에 끝낸 것부터).
     var todo = items.filter(function (it) { return !WT.store.doneAt(it.id); });
@@ -158,7 +159,18 @@
       if (ait) box.appendChild(el("div", { "class": "msg ok donenote", id: "academyNotice", text: "🏆 「" + lessonTitle(ait) + "」 학원 시험 만점! 트로피 스티커를 받았어요." }));
     }
     if (!todo.length) box.appendChild(el("div", { "class": "card", text: "지금 공부할 단원이 없어요. 시험 끝난 단원은 아래에 있어요." }));
-    todo.forEach(function (it) { box.appendChild(lessonCard(it)); });
+    // 종류마다 큰 머리말을 두어 단어 시험과 Chunk 시험을 한눈에 나눈다(카드는 #lessonList 바로 아래에 둔다).
+    ["word", "chunk"].forEach(function (kind) {
+      var mine = todo.filter(function (it) { return it.kind === kind; });
+      if (!mine.length) return;
+      box.appendChild(el("h2", { "class": "kindhead k-" + kind }, [
+        el("span", { "class": "ki", text: KIND[kind].icon }),
+        el("span", { text: KIND[kind].name }),
+        el("span", { "class": "kday", text: KIND[kind].day }),
+        el("span", { "class": "kn", text: mine.length + "개" })
+      ]));
+      mine.forEach(function (it) { box.appendChild(lessonCard(it)); });
+    });
     if (done.length) {
       var grp = el("details", { "class": "donegroup", id: "doneGroup" }, [
         el("summary", { text: "✅ 시험 끝난 단원 " + done.length + "개" })
@@ -170,34 +182,73 @@
     }
   }
 
+  // 단원 종류: 아이가 한눈에 구분하도록 그림·이름·요일·색을 나눈다.
+  var KIND = {
+    word: { icon: "📘", name: "단어 시험", day: "월·수", short: "단어" },
+    chunk: { icon: "🧩", name: "Chunk 시험", day: "금", short: "Chunk" }
+  };
+
+  // 카드 큰 제목: 「단어」/「Chunk Quiz」는 작게, Lesson 번호는 크게, 단원 이름은 아래 작게.
+  function titleParts(it) {
+    var d = it.data;
+    if (it.kind === "word") return { pre: "단어", main: "Lesson " + d.lesson, sub: d.title || "" };
+    var t = d.title || "Chunk Quiz";
+    var m = /^(Chunk Quiz)\s+(.+)$/i.exec(t);
+    return m ? { pre: m[1], main: m[2], sub: "" } : { pre: "", main: t, sub: "" };
+  }
+
   function lessonCard(it) {
     var doneAt = WT.store.doneAt(it.id);
     var d = it.data;
     var verified = !!d.verified;
-    var title = lessonTitle(it);
+    var tp = titleParts(it);
     var meta = it.kind === "word"
       ? "단어 " + d.words.length + "개 · 문장 출처: " + sourcesText(d.sentence_sources) + " · 해석 필수: " + (d.require_sentence_ko ? "예" : "아니오")
       : "Key Vocabulary " + (d.vocab || []).length + "개 · chunk 문장 " + (d.chunks || []).length + "개 · Fill in 첫 글자 힌트: " + (d.hint === "first" ? "있음" : "없음");
     var weakN = WT.store.weakCount(it);
-    return el("div", { "class": "card lesson" + (doneAt ? " done" : ""), "data-id": it.id }, [
-      el("div", { "class": "head" }, [
-        doneAt ? el("span", { "class": "badge ok", text: "✅ 시험 끝 " + fmtDay(doneAt) }) : null,
-        el("span", { text: ownerLabel(d.owner) }),
-        el("span", { "class": "badge kind", text: it.kind === "word" ? "단어" : "chunk" }),
-        el("span", { text: title }),
-        el("span", { "class": "badge " + (verified ? "ok" : "warn"), text: verified ? "교재 대조 완료" : "교재 대조 전" })
-      ].concat(it.synced ? [el("span", { "class": "badge kind", text: "부모님이 올림" })] : [])
-        .concat(weakN ? [el("span", { "class": "badge warn", text: "틀린 항목 " + weakN + "개" })] : [])
-        .concat(WT.store.fixesFor(it.id).length ? [el("span", { "class": "badge kind", text: "고칠 곳 " + WT.store.fixesFor(it.id).length + "개" })] : [])),
+    var fixN = WT.store.fixesFor(it.id).length;
+    var study = function () { WT.study.open(it, { who: ownerLabel(it.data.owner), owner: it.data.owner, onClose: function () { renderLessons(); updateWeakControls(); } }); };
+    // 아이가 볼 필요 없는 것(교재 대조, 부모님이 올림, 단원 구성, 확인 표, 삭제)은 「⋯ 부모님용」 안에 접어 둔다.
+    var parent = el("details", { "class": "parentbox" }, [
+      el("summary", { text: "⋯ 부모님용" + (fixN ? " · 고칠 곳 " + fixN + "개" : "") }),
+      el("div", { "class": "pbadges" }, [
+        el("span", { "class": "badge " + (verified ? "ok" : "warn"), text: verified ? "교재 대조 완료" : "교재 대조 전" }),
+        it.synced ? el("span", { "class": "badge kind", text: "부모님이 올림" }) : null,
+        fixN ? el("span", { "class": "badge kind", text: "고칠 곳 " + fixN + "개" }) : null
+      ]),
       el("div", { "class": "meta", text: meta }),
-      recentLine(it),
-      academyLine(it),
       el("div", { "class": "row" }, [
-        el("button", { type: "button", "class": "primary", text: "시험지 만들기", onclick: function () { openMaker(it.id); } }),
-        el("button", { type: "button", "class": "primary", text: "외우기", onclick: function () { WT.study.open(it, { who: ownerLabel(it.data.owner), owner: it.data.owner, onClose: function () { renderLessons(); updateWeakControls(); } }); } }),
-        el("button", { type: "button", text: "틀린 단어 표시", onclick: function () { openWeak(it.id); } }),
-        el("button", { type: "button", "class": "acadbtn", text: "📝 학원 점수", onclick: function () { openAcademy(it.id); } }),
-        el("button", { type: "button", text: "확인 표", onclick: function () { openCheck(it.id); } }),
+        el("button", { type: "button", text: "확인 표", onclick: function () { openCheck(it.id); } })
+      ].concat(it.synced ? [] : [
+        el("button", { type: "button", "class": "danger", text: "삭제", onclick: function () {
+          if (window.confirm("이 단원을 이 기기에서 지울까요?")) { WT.store.remove(it.id); renderLessons(); }
+        } })
+      ]))
+    ]);
+    return el("div", { "class": "card lesson k-" + it.kind + (doneAt ? " done" : ""), "data-id": it.id }, [
+      el("div", { "class": "head" }, [
+        el("span", { "class": "kchip", text: KIND[it.kind].icon + " " + KIND[it.kind].name }),
+        el("span", { "class": "owner", text: ownerLabel(d.owner) }),
+        doneAt ? el("span", { "class": "badge ok", text: "✅ 시험 끝 " + fmtDay(doneAt) }) : null,
+        el("div", { "class": "ltitle" }, [
+          tp.pre ? el("span", { "class": "lpre", text: tp.pre }) : null,
+          tp.pre ? " " : null,
+          el("span", { "class": "lmain", text: tp.main })
+        ]),
+        tp.sub ? el("div", { "class": "lsub", text: tp.sub }) : null
+      ]),
+      el("div", { "class": "status" }, [
+        weakN ? el("span", { "class": "schip weak", text: "🔁 틀린 항목 " + weakN + "개" }) : null,
+        recentLine(it),
+        academyLine(it)
+      ]),
+      el("div", { "class": "row mainbtns" }, [
+        el("button", { type: "button", "class": "primary big", "data-b": "study", text: "외우기", onclick: study }),
+        el("button", { type: "button", "class": "primary big", "data-b": "make", text: "시험지 만들기", onclick: function () { openMaker(it.id); } })
+      ]),
+      el("div", { "class": "row subbtns" }, [
+        el("button", { type: "button", "data-b": "weak", text: "틀린 단어 표시", onclick: function () { openWeak(it.id); } }),
+        el("button", { type: "button", "class": "acadbtn", "data-b": "academy", text: "📝 학원 점수", onclick: function () { openAcademy(it.id); } }),
         doneAt
           ? el("button", { type: "button", "class": "donebtn", text: "↩ 다시 위로", onclick: function () { WT.store.setDone(it.id, false); renderLessons(); } })
           : el("button", { type: "button", "class": "donebtn", text: "✅ 시험 끝", onclick: function () {
@@ -206,11 +257,8 @@
             renderLessons();
             window.scrollTo(0, 0);
           } })
-      ].concat(it.synced ? [] : [
-        el("button", { type: "button", "class": "danger", text: "삭제", onclick: function () {
-          if (window.confirm("이 단원을 이 기기에서 지울까요?")) { WT.store.remove(it.id); renderLessons(); }
-        } })
-      ]))
+      ]),
+      parent
     ]);
   }
 
@@ -318,7 +366,16 @@
       return Object.assign({ id: id, title: it ? lessonTitle(it) : (r.title || id), owner: it ? it.data.owner : r.owner, kind: it ? it.kind : r.kind }, r);
     }).filter(Boolean);
     if (conn) rows = rows.filter(function (r) { return r.owner === WT.sync.CHILD_OWNER[mc ? mc.active : conn.child]; });
-    if (!rows.length) return;
+    if (!rows.length) {
+      // 기록이 없어도 칸은 보여 주고 적는 방법을 알려 준다(숨기면 기능이 없는 줄 앎).
+      if (!lessons.length) return;
+      var who = conn ? ownerLabel(WT.sync.CHILD_OWNER[mc ? mc.active : conn.child]) + " " : "";
+      box.appendChild(el("details", { "class": "card acboard", id: "academyEmpty" }, [
+        el("summary", {}, [el("span", { "class": "stitle", text: "📊 " + who + "학원 점수 0개" }), el("span", { "class": "srecent", text: "단원 카드의 「📝 학원 점수」로 적어요" })]),
+        el("p", { "class": "hint", style: "margin-top:8px", text: "학원에서 시험을 보면 그 단원 카드의 「📝 학원 점수」를 눌러 날짜, 점수, 틀린 것, 메모를 적어요. 적은 점수는 여기에 표로 모이고 단어 시험·Chunk Quiz 평균도 보여요." })
+      ]));
+      return;
+    }
     var owners = [];
     rows.forEach(function (r) { if (owners.indexOf(r.owner) < 0) owners.push(r.owner); });
     owners.sort().forEach(function (owner) {
@@ -416,7 +473,7 @@
     renderChildActions();
     $("syncBox").hidden = !conn;
     $("btnDisconnect").hidden = !conn;
-    $("importBox").open = !conn;
+    $("importBox").open = !conn && !WT.store.list().length; // 처음 쓰는 기기에서만 펼쳐 둔다
     if (!conn) {
       $("connState").textContent = "연결되어 있지 않아요. 부모님께 받은 연결 링크를 이 기기에서 열면 단원이 자동으로 들어와요.";
       return;

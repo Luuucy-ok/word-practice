@@ -1,10 +1,12 @@
 :root{
   --bg:#f4f6fb; --card:#fff; --ink:#111827; --sub:#4b5563; --line:#d7dce5; --brand:#1d4ed8; --brand-ink:#fff;
   --warn:#b91c1c; --warn-bg:#fef2f2; --ok:#047857; --ok-bg:#ecfdf5; --amber:#92400e; --amber-bg:#fffbeb;
+  --kw:#1c7ed6; --kw-bg:#e7f5ff; --kc:#e8590c; --kc-bg:#fff4e6; /* 단어 시험(파랑), Chunk 시험(주황) */
 }
 @media (prefers-color-scheme: dark){
   :root{ --bg:#0f172a; --card:#1e293b; --ink:#f1f5f9; --sub:#b6c2d4; --line:#334155; --brand:#60a5fa; --brand-ink:#0b1220;
-    --warn:#fca5a5; --warn-bg:#3b1517; --ok:#6ee7b7; --ok-bg:#0f2f25; --amber:#fcd34d; --amber-bg:#35290b; }
+    --warn:#fca5a5; --warn-bg:#3b1517; --ok:#6ee7b7; --ok-bg:#0f2f25; --amber:#fcd34d; --amber-bg:#35290b;
+    --kw:#4dabf7; --kw-bg:#0b2a40; --kc:#ff922b; --kc-bg:#3a2210; }
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -179,6 +181,38 @@ html[data-theme] button.key{font-family:"Nunito","Malgun Gothic",sans-serif;font
 html[data-theme] button.k-space,html[data-theme] button.k-enter,html[data-theme] button.k-shift,html[data-theme] button.k-back,html[data-theme] button.k-hide{font-family:"Jua","Malgun Gothic",sans-serif;font-weight:400}
 html[data-theme] button.key{border-radius:12px;background:var(--bg);color:var(--ink);border:1px solid var(--line)}
 html[data-theme] button.k-enter,html[data-theme] button.k-shift.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+
+/* 단원 목록: 종류별 머리말과 카드(아이가 쓰기 쉽게) */
+.k-word{--kcol:var(--kw);--kbg:var(--kw-bg)}
+.k-chunk{--kcol:var(--kc);--kbg:var(--kc-bg)}
+h2.kindhead{display:flex;align-items:center;gap:8px;margin:22px 4px 10px;font-size:21px;color:var(--kcol)}
+h2.kindhead .ki{font-size:26px}
+h2.kindhead .kday{font-size:14px;padding:2px 10px;border-radius:999px;background:var(--kbg);color:var(--kcol)}
+h2.kindhead .kn{margin-left:auto;font-size:14px;color:var(--sub);font-weight:600}
+#lessonList .card.lesson{border-left:8px solid var(--kcol);gap:8px}
+.lesson .head{gap:6px 8px}
+.lesson .kchip{background:var(--kcol);color:#fff;border-radius:999px;padding:3px 12px;font-size:14px;font-weight:700}
+.lesson .owner{font-size:14px;color:var(--sub);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-weight:600}
+.lesson .ltitle{flex-basis:100%;margin-top:2px;line-height:1.2}
+.lesson .lpre{font-size:16px;color:var(--kcol);font-weight:700}
+.lesson .lmain{font-size:30px;font-weight:800;color:var(--ink);letter-spacing:-.5px}
+.lesson .lsub{flex-basis:100%;font-size:15px;color:var(--sub);font-weight:600}
+.lesson .status{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.lesson .status:empty{display:none}
+.schip.weak{background:var(--warn-bg);color:var(--warn);border-radius:999px;padding:2px 10px;font-size:14px;font-weight:700}
+.mainbtns button.big{flex:1 1 160px;min-height:60px;font-size:19px}
+.subbtns button{min-height:44px;font-size:15px}
+button[data-b]::before{margin-right:6px}
+button[data-b="study"]::before{content:"📖"}
+button[data-b="make"]::before{content:"✏️"}
+button[data-b="weak"]::before{content:"🔁"}
+.parentbox{margin-top:4px;border-top:1px dashed var(--line);padding-top:4px}
+.parentbox > summary{font-size:13px;color:var(--sub);min-height:34px;font-weight:600}
+.parentbox .pbadges{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}
+.parentbox .meta{margin-bottom:8px}
+.parenthead{margin:30px 4px 10px;padding-top:14px;border-top:2px dashed var(--line);font-size:14px;color:var(--sub)}
+html[data-theme] .lesson .lmain{font-family:"Jua","Malgun Gothic",sans-serif;font-weight:400}
+html[data-theme] .parentbox > summary{font-family:inherit}
 
 /* 학원 시험 점수 */
 .acform{display:flex;flex-wrap:wrap;gap:12px 20px}

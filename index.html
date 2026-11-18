@@ -47,31 +47,35 @@
       </div>
       <div id="connectMsg" role="status" aria-live="polite"></div>
     </div>
-    <!-- 연결된 기기에서 보이는 상태 -->
-    <div id="syncBox" class="card" hidden>
-      <h2>부모님이 올려 준 단원</h2>
-      <div id="syncStatus" class="hint"></div>
-      <div id="syncExpiry" role="status"></div>
-      <div id="syncMsg" role="status" aria-live="polite"></div>
-      <div class="row">
-        <button type="button" id="btnSync">지금 새로 받기</button>
-      </div>
-    </div>
-    <details id="importBox" class="card">
-      <summary><b>단원 파일을 직접 가져오기</b></summary>
-      <p class="hint">부모님이 만든 단원 데이터(JSON 파일)를 이 기기에 넣어요. 교재 내용이라서 인터넷에 올라가지 않고 <b>이 기기에만</b> 저장돼요.</p>
-      <label class="field">파일 고르기(여러 개 가능)
-        <input type="file" id="fileIn" accept=".json,application/json" multiple>
-      </label>
-      <label class="field">또는 여기에 붙여 넣기
-        <textarea id="pasteIn" rows="4" placeholder='{"kind": "word", ...}'></textarea>
-      </label>
-      <button type="button" id="btnImport" class="primary">가져오기</button>
-      <div id="importMsg" role="status" aria-live="polite"></div>
-    </details>
     <div id="stickerBox"></div>
     <div id="academyBox"></div>
     <div id="lessonList"></div>
+    <!-- 부모님용: 단원 받기 상태와 파일 가져오기(아이 화면에서는 맨 아래) -->
+    <div id="parentArea">
+      <h3 class="parenthead">부모님용</h3>
+      <!-- 연결된 기기에서 보이는 상태 -->
+      <div id="syncBox" class="card" hidden>
+        <h2>부모님이 올려 준 단원</h2>
+        <div id="syncStatus" class="hint"></div>
+        <div id="syncExpiry" role="status"></div>
+        <div id="syncMsg" role="status" aria-live="polite"></div>
+        <div class="row">
+          <button type="button" id="btnSync">지금 새로 받기</button>
+        </div>
+      </div>
+      <details id="importBox" class="card">
+        <summary><b>단원 파일을 직접 가져오기</b></summary>
+        <p class="hint">부모님이 만든 단원 데이터(JSON 파일)를 이 기기에 넣어요. 교재 내용이라서 인터넷에 올라가지 않고 <b>이 기기에만</b> 저장돼요.</p>
+        <label class="field">파일 고르기(여러 개 가능)
+          <input type="file" id="fileIn" accept=".json,application/json" multiple>
+        </label>
+        <label class="field">또는 여기에 붙여 넣기
+          <textarea id="pasteIn" rows="4" placeholder='{"kind": "word", ...}'></textarea>
+        </label>
+        <button type="button" id="btnImport" class="primary">가져오기</button>
+        <div id="importMsg" role="status" aria-live="polite"></div>
+      </details>
+    </div>
   </section>
 
   <!-- 시험지 -->

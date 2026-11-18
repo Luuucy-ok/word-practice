@@ -121,7 +121,7 @@ var MOCK = "(function(){" +
   await sleep(800);
   check(await H("#connectBox"), "연결하면 확인 화면이 닫힘");
   check(!(await H("#syncBox")) && /연결했어요\. 단원 3개/.test(await T("#syncMsg")), "연결 결과가 보임: " + (await T("#syncMsg")).split("\n")[0]);
-  var list = await T("#lessonList");
+  var list = await ev("document.getElementById('lessonList').textContent"); // 접힌 「부모님용」 안 글자까지
   check(/단어 Lesson 7/.test(list) && /단어 Lesson 8/.test(list) && /Chunk Quiz/.test(list), "받은 단원 3개가 목록에 보임");
   check((list.match(/부모님이 올림/g) || []).length === 3, "받은 단원에 「부모님이 올림」 표시");
   check(await ev("Array.from(document.querySelectorAll('#lessonList .card')).every(function(c){return !Array.from(c.querySelectorAll('button')).some(function(b){return b.textContent==='삭제'})})"), "받은 단원에는 삭제 버튼이 없음");
@@ -132,7 +132,7 @@ var MOCK = "(function(){" +
   await shot("s3_연결됨");
 
   // 5) 시험지 만들기가 받은 단원에서도 됨
-  await ev("Array.from(document.querySelectorAll('#lessonList .card')).filter(function(c){return /단어 Lesson 8/.test(c.innerText)})[0].querySelector('button.primary').click()");
+  await ev("Array.from(document.querySelectorAll('#lessonList .card')).filter(function(c){return /단어 Lesson 8/.test(c.innerText)})[0].querySelector('button[data-b=make]').click()");
   await sleep(700);
   var sheet = await ev("document.getElementById('sheet').srcdoc");
   check(/Lesson 8/.test(sheet) && sheet.length > 5000, "받은 단원으로 시험지가 만들어짐");
@@ -254,18 +254,18 @@ var MOCK = "(function(){" +
   check(/연결했어요\. 단원 5개/.test(msgAB), "두 아이 단원 5개(아이 A 3개 + 아이 B 2개)를 받았다고 알려 줌: " + msgAB.split("\n")[0]);
   var callsAB = await ev("window.__calls()");
   check(callsAB.length === 2 && /A\.json$/.test(callsAB[0].url) && /B\.json$/.test(callsAB[1].url) && callsAB.every(function (c) { return c.auth === "Bearer " + TOKEN; }), "A.json, B.json 을 한 번씩 같은 열쇠로 받음");
-  var listA = await T("#lessonList");
+  var listA = await ev("document.getElementById('lessonList').textContent");
   check(/아이 A/.test(listA) && listA.indexOf("아이 B") < 0 && (listA.match(/부모님이 올림/g) || []).length === 3, "지금 보는 아이(아이 A)의 단원 3개만 보이고 아이 B 단원은 안 보임");
   check(/두 아이 함께 연결됨.*아이 A 3개.*아이 B 2개/.test(await T("#syncStatus")), "상태 줄: " + await T("#syncStatus"));
   await shot("s11_두아이_A");
 
   // 아이 B 로 바꾸기(확인 창 → 아이 B 단원만 보임, 열려 있던 시험지는 비움)
-  await ev(yes + "Array.from(document.querySelectorAll('#lessonList .card')).filter(function(c){return /단어 Lesson 8/.test(c.innerText)})[0].querySelector('button.primary').click()");
+  await ev(yes + "Array.from(document.querySelectorAll('#lessonList .card')).filter(function(c){return /단어 Lesson 8/.test(c.innerText)})[0].querySelector('button[data-b=make]').click()");
   await sleep(500);
   check(!(await H("#makePanel")), "(아이 A 단원으로 시험지를 열어 둠)");
   await ev("document.getElementById('btnActiveB').click()");
   await sleep(300);
-  var listB = await T("#lessonList");
+  var listB = await ev("document.getElementById('lessonList').textContent");
   check(/✓ 아이 B/.test(await T("#btnActiveB")) && /아이 B/.test(listB) && listB.indexOf("아이 A") < 0 && (listB.match(/부모님이 올림/g) || []).length === 2, "아이 B 로 바꾸면 아이 B 단원 2개만 보임");
   check((await H("#makePanel")) && !(await H("#makeEmpty")) && (await ev("document.getElementById('sheet').srcdoc")) === "", "바꾸면 열려 있던 아이 A 시험지는 비워짐");
   await shot("s12_두아이_B");
