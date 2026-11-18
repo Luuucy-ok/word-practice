@@ -94,7 +94,7 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   // 1) 단원 카드 → 외우기
   await clickCard(wTitle, "외우기");
   await sleep(200);
-  check(!(await H("#study")) && (await ev("Array.from(document.querySelectorAll('#studyBody button.act')).map(function(b){return b.getAttribute('data-act')}).join()")) === "cards,listen,hint,letters", "단원 카드의 「외우기」로 고르기 화면이 열리고, 단어 단원은 활동 4가지(카드, 듣고 쓰기, 첫 글자 힌트, 글자 순서)가 보임");
+  check(!(await H("#study")) && (await ev("Array.from(document.querySelectorAll('#studyBody button.act')).map(function(b){return b.getAttribute('data-act')}).join()")) === "cards,listen,hint,pen,letters", "단원 카드의 「외우기」로 고르기 화면이 열리고, 단어 단원은 활동 5가지(카드, 듣고 쓰기, 첫 글자 힌트, 펜으로 쓰기, 글자 순서)가 보임");
   check(/전체/.test(await T("#studyBody")) && /약한 항목만 \(0개\)/.test(await T("#studyBody")), "범위 고르기: 전체 / 약한 항목만(0개)");
   await shot("m1_고르기");
 
@@ -230,6 +230,43 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   check(steps === N && /약한 목록에 넣었어요/.test(await T("#studyBody")), "힌트 쓰기: " + N + "개를 모두 맞히면 끝나고, 약한 목록에 넣은 것을 알려 줌");
   await click("#btnStudyClose");
 
+  // 5-2b) 펜으로 쓰기(단어 단원): 손글씨 칸, 정답 보기, 스스로 채점
+  await clickCard(wTitle, "외우기");
+  await click("#studyBody button.act[data-act=pen]");
+  await click("#btnStudyStart");
+  await sleep(200);
+  var pw = await cur("{word:c.deck.current().word,en:c.deck.current().en,ko:c.deck.current().ko,say:c.deck.current().say}");
+  var cvs = await ev("(function(){var c=document.getElementById('penCanvas');return {w:c.width,h:c.height,ta:getComputedStyle(c).touchAction}})()");
+  check(cvs.w > 300 && cvs.h > 100 && cvs.ta === "none", "펜으로 쓰기: 손글씨 칸이 나오고(스크롤 대신 글씨가 써짐)");
+  var penCard = await T("#studyCard");
+  check(penCard.indexOf(pw.en.slice(0, 20)) >= 0 && penCard.indexOf(pw.ko) < 0 && penCard.indexOf(pw.word) < 0 || pw.en.indexOf(pw.word) >= 0, "문제에는 영문 뜻만 보이고 정답·한글 뜻은 숨김");
+  await click("#btnPenShow");
+  check(/먼저 펜으로/.test(await T("#studyFix")), "아무것도 안 쓰고 「정답 보기」를 누르면 먼저 쓰라고 안내");
+  await ev("WT.study._current().pad._draw([[20,60],[60,120],[100,60]])");
+  check((await ev("(function(){var c=document.getElementById('penCanvas');var d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(var i=3;i<d.length;i+=4)if(d[i])return true;return false})()")), "칸에 쓴 글씨가 그려짐");
+  await click("#btnPenUndo");
+  check((await ev("WT.study._current().pad.count()")) === 0, "「한 획 지우기」로 마지막 획을 지움");
+  await ev("WT.study._current().pad._draw([[20,60],[60,120],[100,60]])");
+  await shot("m15_펜쓰기");
+  await click("#btnPenShow");
+  var penFix = await T("#studyFix");
+  check(penFix.indexOf(pw.word) >= 0 && penFix.indexOf("뜻: " + pw.ko) >= 0 && (await ev("window.__spoken.slice(-1)[0].text")) === pw.say, "「정답 보기」: 정답과 한글 뜻을 보여 주고 읽어 줌");
+  check(!!(await ev("document.getElementById('btnPenRight')")) && !!(await ev("document.getElementById('btnPenWrong')")), "「맞았어요」「틀렸어요」 버튼으로 스스로 채점");
+  await shot("m16_펜쓰기_정답");
+  await click("#btnPenWrong");
+  await sleep(100);
+  check(await ev("WT.store.isWeak(" + wid + ".id," + JSON.stringify(pw.word) + ")"), "「틀렸어요」를 누르면 그 단어가 약한 목록에 들어감");
+  steps = 0;
+  while (!(await cur("c.deck.finished()")) && steps < 50) {
+    await ev("WT.study._current().pad._draw([[10,10],[30,30]])");
+    await click("#btnPenShow");
+    await click("#btnPenRight");
+    await sleep(380);
+    steps++;
+  }
+  check(steps === N && /약한 목록에 넣었어요/.test(await T("#studyBody")) && (await T("#studyBody")).indexOf("처음에 틀린 것: " + pw.word) >= 0, "틀린 단어는 다시 나오고, " + N + "개를 모두 「맞았어요」로 끝내면 끝 화면");
+  await click("#btnStudyClose");
+
   // 5-3) 글자 순서 맞추기(단어 단원): 조각 넣고 빼기, 틀리면 다시, 약한 목록은 그대로
   // right: true 면 정답 순서, false 면 섞인 순서 그대로(정답과 다르게 섞여 있으므로 틀림)
   function placeTiles(right) {
@@ -267,7 +304,7 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
 
   // 5-4) chunk 블록 맞추기(chunk 단원만)
   await clickCard(cTitle, "외우기");
-  check((await ev("Array.from(document.querySelectorAll('#studyBody button.act')).map(function(b){return b.getAttribute('data-act')}).join()")) === "cards,listen,hint,letters,blocks", "chunk 단원에는 「chunk 블록 맞추기」가 더 보임");
+  check((await ev("Array.from(document.querySelectorAll('#studyBody button.act')).map(function(b){return b.getAttribute('data-act')}).join()")) === "cards,listen,hint,pen,letters,blocks", "chunk 단원에는 「chunk 블록 맞추기」가 더 보임");
   await click("#studyBody button.act[data-act=blocks]");
   await ev("(function(){var b=document.querySelector(\"#studyBody button.opt[data-group='Chunk 문장']\");if(!b.classList.contains('on'))b.click()})()");
   await ev("(function(){var b=document.querySelector(\"#studyBody button.opt[data-group='Key Vocabulary']\");if(b.classList.contains('on'))b.click()})()");

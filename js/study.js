@@ -5,6 +5,7 @@
  *   채점은 화면 시험과 같은 규칙(quiz.compare)이고, 틀린 것은 뒤에 다시 나온다.
  *   처음에 틀린 것은 약한 목록에 넣는다. 맞혀도 약한 목록에서 빼지는 않는다(빼는 것은 화면 시험에서만).
  * - 첫 글자 힌트 쓰기: 뜻과 단어마다 첫 글자·글자 수 힌트를 보고 쓴다. 채점과 약한 목록 규칙은 듣고 쓰기와 같다.
+ * - 펜으로 쓰기: 손글씨 칸에 펜(또는 손가락)으로 쓰고 정답을 본 뒤 스스로 「맞았어요/틀렸어요」를 누른다. 약한 목록 규칙은 듣고 쓰기와 같다.
  * - 글자 순서 맞추기: 단어(chunk 단원은 Key Vocabulary 단어)의 섞인 글자를 눌러 순서대로 놓는다.
  * - chunk 블록 맞추기(chunk 단원만): 콜로케이션 전체, chunk 문장의 빈칸 부분을 단어 블록으로 섞어 순서대로 놓는다.
  *   맞추기 두 가지는 조각을 고르는 연습이라 약한 목록을 바꾸지 않는다.
@@ -111,6 +112,7 @@
     { id: "cards", label: "🃏 카드 넘기기", desc: "뜻을 보고 떠올린 뒤 뒤집어 확인해요", short: "카드" },
     { id: "listen", label: "🎧 듣고 쓰기", desc: "영어를 듣고 빈칸을 써요", short: "듣고 쓰기", graded: true },
     { id: "hint", label: "✏️ 첫 글자 힌트 쓰기", desc: "첫 글자와 글자 수를 보고 써요", short: "첫 글자 힌트 쓰기", graded: true },
+    { id: "pen", label: "✍️ 펜으로 쓰기", desc: "시험처럼 손으로 쓰고 정답과 비교해요", short: "펜으로 쓰기", graded: true },
     { id: "letters", label: "🔤 글자 순서 맞추기", desc: "섞인 글자를 눌러 단어를 만들어요", short: "글자 순서 맞추기" },
     { id: "blocks", label: "🧩 chunk 블록 맞추기", desc: "섞인 단어 블록을 순서대로 놓아요", short: "chunk 블록 맞추기", chunkOnly: true }
   ];
@@ -313,6 +315,8 @@
       box.appendChild(face);
     } else if (p.act === "hint") {
       box.appendChild(el("p", { "class": "hint", style: "margin-top:8px", text: "뜻과 첫 글자 힌트를 보고 써요. 철자, 대소문자, -ed·-s 까지 정확히 써야 맞아요. 틀린 것은 다시 나오고, 처음에 틀린 것은 약한 목록에 들어가요." }));
+    } else if (p.act === "pen") {
+      box.appendChild(el("p", { "class": "hint", style: "margin-top:8px", text: "S펜(없으면 손가락)으로 칸에 쓰고 「정답 보기」를 눌러 비교해요. 맞았는지는 스스로 눌러요. 철자, 대소문자, -ed·-s 까지 같아야 맞아요. 틀린 것은 다시 나오고, 처음에 틀린 것은 약한 목록에 들어가요." }));
     } else if (p.act === "letters") {
       box.appendChild(el("p", { "class": "hint", style: "margin-top:8px", text: "뜻을 보고 섞인 글자를 순서대로 눌러요. 잘못 놓은 글자는 다시 누르면 빠져요." + (cur.lesson.kind === "chunk" ? " chunk 문장은 「chunk 블록 맞추기」에서 연습해요." : "") + " 스스로 익히는 연습이라 약한 목록은 바꾸지 않아요." }));
     } else if (p.act === "blocks") {
@@ -364,6 +368,7 @@
   function renderStep() {
     if (cur.act === "cards") renderCard();
     else if (cur.act === "listen" || cur.act === "hint") renderWrite();
+    else if (cur.act === "pen") renderPen();
     else renderTiles();
   }
 
@@ -514,6 +519,135 @@
       if (res.added.length) cur.added.push(item); else cur.again.push(item);
     }
     renderWrite();
+  }
+
+  // ---------------------------------------------------------------- 3-1) 펜으로 쓰기(손글씨 칸 + 스스로 채점)
+  // 손글씨를 글자로 바꾸지 않는다(브라우저에서 무료로 쓸 수 있는 인식 기능이 없고, 인식기는 틀린 철자를 고쳐 버릴 수 있음).
+  // 쓴 글씨와 정답을 나란히 보고 아이가 「맞았어요/틀렸어요」를 누른다. 처음에 틀렸다고 누른 것은 약한 목록에 넣는다.
+  function penPad() {
+    var wrap = el("div", { "class": "penwrap" });
+    var cv = el("canvas", { "class": "pen", id: "penCanvas", "aria-label": "펜으로 쓰는 칸" });
+    wrap.appendChild(cv);
+    var strokes = [], curStroke = null, sawPen = false, ctx = null, ratio = 1;
+    function size() {
+      ratio = root.devicePixelRatio || 1;
+      var w = cv.clientWidth || 600, h = cv.clientHeight || 200;
+      cv.width = Math.round(w * ratio);
+      cv.height = Math.round(h * ratio);
+      ctx = cv.getContext("2d");
+      redraw();
+    }
+    function color() { try { return root.getComputedStyle(cv).color || "#111"; } catch (e) { return "#111"; } }
+    function line(s) {
+      if (!ctx || !s.length) return;
+      ctx.strokeStyle = color();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (var i = 0; i < s.length; i++) {
+        var a = s[i - 1] || s[i], b = s[i];
+        ctx.lineWidth = Math.max(2, 3.2 * (b.p || 0.5) + 1.2) * ratio;
+        ctx.beginPath();
+        ctx.moveTo(a.x * ratio, a.y * ratio);
+        ctx.lineTo(b.x * ratio + 0.01, b.y * ratio);
+        ctx.stroke();
+      }
+    }
+    function redraw() { if (!ctx) return; ctx.clearRect(0, 0, cv.width, cv.height); strokes.forEach(line); }
+    function pt(e) { var r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, p: e.pointerType === "pen" ? (e.pressure || 0.5) : 0.5 }; }
+    cv.addEventListener("pointerdown", function (e) {
+      if (e.pointerType === "pen") sawPen = true;
+      else if (sawPen && e.pointerType === "touch") return; // 펜으로 쓰는 중에 손바닥이 닿은 것은 무시
+      if (pad.locked) return;
+      e.preventDefault();
+      try { cv.setPointerCapture(e.pointerId); } catch (x) {}
+      curStroke = [pt(e)];
+      strokes.push(curStroke);
+      redraw();
+    });
+    cv.addEventListener("pointermove", function (e) {
+      if (!curStroke) return;
+      e.preventDefault();
+      curStroke.push(pt(e));
+      line(curStroke.slice(-2));
+    });
+    function end() { curStroke = null; if (pad.onChange) pad.onChange(); }
+    cv.addEventListener("pointerup", end);
+    cv.addEventListener("pointercancel", end);
+    var pad = {
+      node: wrap, canvas: cv, locked: false, onChange: null,
+      size: size,
+      count: function () { return strokes.length; },
+      undo: function () { strokes.pop(); redraw(); },
+      clear: function () { strokes = []; redraw(); },
+      _draw: function (pts) { strokes.push(pts.map(function (q) { return { x: q[0], y: q[1], p: 0.5 }; })); redraw(); } // 점검용
+    };
+    return pad;
+  }
+
+  function renderPen() {
+    var d = cur.deck;
+    if (d.finished()) { renderEnd(); return; }
+    progress();
+    cur.checked = null;
+    var item = d.current();
+    var body = $("studyBody");
+    clear(body);
+    var pad = penPad();
+    cur.pad = pad;
+    var long = item.answers.some(function (a) { return a.indexOf(" ") >= 0; }) || item.answers.length > 1;
+    pad.canvas.classList.add(long ? "tall" : "short");
+    var card = el("div", { "class": "flash listen penmode", id: "studyCard" }, [
+      el("div", { "class": "fgroup", text: item.group + (item.pos ? " · " + item.pos : "") }),
+      questionMeaning(item),
+      singleBlank(item) ? null : phrase(item, "blank"),
+      pad.node,
+      el("div", { "class": "row pentools" }, [
+        el("button", { type: "button", id: "btnPenUndo", text: "↶ 한 획 지우기", onclick: function () { pad.undo(); } }),
+        el("button", { type: "button", id: "btnPenClear", text: "모두 지우기", onclick: function () { pad.clear(); } })
+      ]),
+      el("div", { id: "studyFix" })
+    ]);
+    body.appendChild(card);
+    body.appendChild(el("div", { "class": "row fbtns", id: "studyBtns" }, [
+      el("button", { type: "button", "class": "primary", id: "btnPenShow", text: "정답 보기", onclick: showPen })
+    ]));
+    pad.size();
+  }
+
+  function showPen() {
+    if (!cur || cur.checked) return;
+    var item = cur.deck.current();
+    var fix = $("studyFix");
+    if (!cur.pad.count()) {
+      clear(fix);
+      fix.appendChild(el("div", { "class": "msg warn", text: "먼저 펜으로 칸에 써 보세요." }));
+      return;
+    }
+    cur.checked = { pending: true };
+    cur.pad.locked = true;
+    clear(fix);
+    fix.appendChild(el("div", { "class": "penans" }, [el("span", { "class": "fgroup", text: "정답" }), phrase(item, "filled")]));
+    var kr = koReveal(item);
+    if (kr) fix.appendChild(kr);
+    fix.appendChild(el("p", { "class": "hint", text: "내가 쓴 것과 한 글자씩 비교해 보세요. 대문자, -ed·-s 도 같아야 맞아요." }));
+    speech.say(item.say, false);
+    var row = $("studyBtns");
+    clear(row);
+    row.appendChild(el("button", { type: "button", "class": "dunno", id: "btnPenWrong", text: "❌ 틀렸어요", onclick: function () { markPen(false); } }));
+    row.appendChild(el("button", { type: "button", "class": "primary", id: "btnPenRight", text: "⭕ 맞았어요", onclick: function () { markPen(true); } }));
+  }
+
+  function markPen(ok) {
+    if (!cur || !cur.checked || !cur.checked.pending) return;
+    var item = cur.deck.current();
+    cur.checked = { ok: ok };
+    cheer(ok);
+    if (ok) cur.deck.pass();
+    else if (cur.deck.fail()) {
+      var res = WT.store.applyGrading(cur.lesson.id, (function () { var o = {}; o[item.key] = false; return o; })());
+      if (res.added.length) cur.added.push(item); else cur.again.push(item);
+    }
+    setTimeout(function () { if (cur && cur.act === "pen") renderPen(); }, ok ? 350 : 0);
   }
 
   // ---------------------------------------------------------------- 3-2) 글자 순서 맞추기, chunk 블록 맞추기

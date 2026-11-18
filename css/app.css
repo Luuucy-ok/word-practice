@@ -151,6 +151,18 @@ button.tile{min-width:52px;min-height:52px;padding:4px 12px;font-size:24px;font-
 button.tile.placed:disabled{opacity:1;cursor:default}
 .flash.wrong .tline button.tile{border-color:var(--sub);color:var(--sub)}
 .tpool{justify-content:center;gap:10px}
+/* 펜으로 쓰기: 영어 공책처럼 네 줄 칸(배경), 그린 글씨는 캔버스 */
+.penwrap{width:100%}
+canvas.pen{display:block;width:100%;border:2px solid var(--line);border-radius:14px;touch-action:none;cursor:crosshair;color:var(--ink);
+  background-color:var(--card);
+  background-image:linear-gradient(to bottom,transparent 0,transparent calc(25% - 1px),rgba(120,140,190,.28) calc(25% - 1px),rgba(120,140,190,.28) 25%,transparent 25%,transparent calc(50% - 1px),rgba(220,80,80,.35) calc(50% - 1px),rgba(220,80,80,.35) 50%,transparent 50%,transparent calc(75% - 1px),rgba(120,140,190,.45) calc(75% - 1px),rgba(120,140,190,.45) 75%,transparent 75%)}
+canvas.pen.short{height:170px}
+canvas.pen.tall{height:230px}
+.flash.penmode{cursor:default}
+.pentools{justify-content:center}
+.pentools button{min-height:44px}
+.penans{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:6px}
+
 /* 앱 영어 자판 */
 .kbd{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--card);border-top:1px solid var(--line);box-shadow:0 -6px 18px rgba(0,0,0,.08);padding:8px 6px calc(8px + env(safe-area-inset-bottom));user-select:none;-webkit-user-select:none;touch-action:manipulation}
 .krow{display:flex;justify-content:center;gap:6px;margin:0 auto 6px;max-width:860px}

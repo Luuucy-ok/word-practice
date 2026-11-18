@@ -131,7 +131,7 @@ files.forEach(function (f) {
   });
 });
 check(!bad7.length, "활동별 항목: 카드·듣고 쓰기·힌트는 전부, 글자 맞추기는 단어·Key Vocabulary " + nLetters + "개, 블록은 chunk " + nBlocks + "개이고 조각을 순서대로 놓으면 원래 글이 됨" + (bad7.length ? "\n  " + bad7.slice(0, 10).join("\n  ") : ""));
-check(kinds.word === "cards,listen,hint,letters" && kinds.chunk === "cards,listen,hint,letters,blocks", "chunk 블록 맞추기는 chunk 단원에만 보임");
+check(kinds.word === "cards,listen,hint,pen,letters" && kinds.chunk === "cards,listen,hint,pen,letters,blocks", "chunk 블록 맞추기는 chunk 단원에만 보임");
 
 var spL = S.tileSpec({ word: "fed up", group: "단어" }, "letters");
 check(spL.tokens.join("") === "fedup" && S.tileBuilt(spL, [0, 1, 2, 3, 4]) === "fed up", "글자 맞추기: 띄어쓰기는 자리로 남고 글자만 조각이 됨");
