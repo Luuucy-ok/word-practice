@@ -112,5 +112,33 @@ button.opt.used{text-decoration:line-through;opacity:.55}
 .fixed .after{color:var(--warn);font-weight:700}
 .fixbox{margin-top:12px}
 textarea.fixtext{display:block;width:100%;margin-top:8px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:13px/1.5 ui-monospace,Consolas,"Malgun Gothic",monospace}
+/* 외우기 */
+.acts{gap:10px}
+button.act{flex:1;min-width:200px;min-height:84px;flex-direction:column;gap:4px;padding:10px 14px;text-align:center}
+button.act span{font-weight:400;font-size:14px;color:var(--sub)}
+button.act.on{border:2px solid var(--brand);background:var(--bg)}
+button.act.on b{color:var(--brand)}
+.flash{position:relative;background:var(--card);border:2px solid var(--line);border-radius:16px;padding:28px 20px 36px;min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;cursor:pointer;user-select:none}
+.flash.listen{cursor:default;min-height:260px;padding-bottom:24px}
+.flash.open{border-color:var(--brand)}
+.flash.right{border-color:#dc2626}
+.flash.wrong{border-color:var(--sub)}
+.fside{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
+.fside.back{border-top:1px dashed var(--line);padding-top:16px}
+.fgroup{color:var(--sub);font-size:13px}
+.fen{font-size:22px;line-height:1.45;font-weight:600}
+.fko{font-size:18px;color:var(--sub)}
+.fmean{display:flex;flex-direction:column;gap:6px}
+.fphrase{font-size:26px;line-height:2;font-family:ui-monospace,Consolas,"Malgun Gothic",monospace}
+.fphrase b{color:var(--brand)}
+.fflip{position:absolute;bottom:10px;left:0;right:0;font-size:13px;color:var(--sub)}
+.fbtns{justify-content:center;margin:16px 0 40px}
+.fbtns button{min-width:160px;min-height:56px;font-size:18px}
+button.dunno{color:var(--warn);border-color:var(--warn)}
+button.say{min-height:48px}
+.fres{font-size:20px;font-weight:700;color:#dc2626}
+input.ans.bad{border-color:var(--warn);background:var(--warn-bg)}
+#study .score{font-size:20px}
+#study .score b{font-size:26px;color:#dc2626}
 [hidden]{display:none !important}
 @media (max-width:520px){ main{padding:12px} .card{padding:14px} }

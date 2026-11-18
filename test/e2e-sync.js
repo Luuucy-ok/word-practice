@@ -269,7 +269,7 @@ var MOCK = "(function(){" +
   await open("");
   await sleep(400);
   check(!(await H("#childBar")) && /✓ 아이 B/.test(await T("#btnActiveB")) && /아이 B/.test(await T("#lessonList")), "페이지를 새로 열어도 두 아이 연결과 지금 보는 아이(아이 B)가 유지됨");
-  await ev(yes + "Array.from(document.querySelectorAll('#lessonList .card')).filter(function(c){return /단어 Lesson 7/.test(c.innerText)})[0].querySelectorAll('button')[1].click()");
+  await ev(yes + "Array.from(document.querySelectorAll('#lessonList .card')).filter(function(c){return /단어 Lesson 7/.test(c.innerText)})[0].querySelectorAll('button').forEach(function(b){if(b.textContent==='틀린 단어 표시')b.click()})");
   await ev("document.querySelectorAll('#dlgBody .weaklist input[type=checkbox]')[0].click(); document.getElementById('dlgClose').click()");
   check(/틀린 항목 1개/.test(await T("#lessonList")), "아이 B 단원에 틀린 단어를 표시함");
   await ev(yes + "document.getElementById('btnActiveA').click()");

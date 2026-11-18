@@ -100,6 +100,7 @@
         recentLine(it),
         el("div", { "class": "row" }, [
           el("button", { type: "button", "class": "primary", text: "시험지 만들기", onclick: function () { openMaker(it.id); } }),
+          el("button", { type: "button", "class": "primary", text: "외우기", onclick: function () { WT.study.open(it, { who: ownerLabel(it.data.owner), onClose: function () { renderLessons(); updateWeakControls(); } }); } }),
           el("button", { type: "button", text: "틀린 단어 표시", onclick: function () { openWeak(it.id); } }),
           el("button", { type: "button", text: "확인 표", onclick: function () { openCheck(it.id); } })
         ].concat(it.synced ? [] : [
@@ -850,7 +851,13 @@
     $("btnPrint").addEventListener("click", printSheet);
     $("btnSolve").addEventListener("click", openSolve);
     WT.solve.bind();
+    WT.study.bind();
     $("kbdTest").addEventListener("input", checkKeyboard);
+    $("btnVoiceTest").addEventListener("click", function () {
+      var ok = WT.speech.say("Hello! Let's practice spelling.", false);
+      var st = WT.speech.status();
+      msg($("voiceMsg"), ok && st.code === "ok" ? "ok" : "warn", WT.speech.statusText(st) + (ok ? "\n소리가 들리면 듣고 쓰기를 쓸 수 있어요." : ""));
+    });
     $("btnFixCopy").addEventListener("click", function () { copyText(WT.store.fixesText(), $("fixMsg"), null); $("fixText").hidden = false; });
     $("btnFixClear").addEventListener("click", function () {
       var n = WT.store.fixesAll().length;

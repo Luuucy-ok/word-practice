@@ -1,6 +1,6 @@
 /* 오프라인에서도 열리게 앱 파일을 저장해 둔다. 인터넷이 되면 항상 새 파일을 먼저 받는다. */
-var CACHE = "word-practice-v4";
-var FILES = ["./", "index.html", "css/app.css", "js/util.js", "js/word.js", "js/chunk.js", "js/store.js", "js/sync.js", "js/quiz.js", "js/solve.js", "js/app.js", "manifest.webmanifest", "icon.svg"];
+var CACHE = "word-practice-v5";
+var FILES = ["./", "index.html", "css/app.css", "js/util.js", "js/word.js", "js/chunk.js", "js/store.js", "js/sync.js", "js/quiz.js", "js/solve.js", "js/study.js", "js/app.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", function (e) {
   // GitHub Pages 는 파일에 max-age=600 을 붙이므로, 브라우저 임시 저장분 대신 서버에 새 것이 있는지 확인해서 받는다.

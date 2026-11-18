@@ -177,6 +177,12 @@
       <input type="text" id="kbdTest" class="ans" lang="en" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="american">
       <div id="kbdMsg" role="status" aria-live="polite"></div>
     </div>
+    <div class="card">
+      <h2>소리 확인 (듣고 쓰기 전에)</h2>
+      <p class="hint">「외우기 → 듣고 쓰기」는 태블릿의 영어 음성으로 단어를 읽어 줘요. 아래 버튼을 눌러 영어 소리가 나는지 확인해 주세요. 소리가 작으면 태블릿 음량(미디어 음량)을 올려 주세요.</p>
+      <button type="button" id="btnVoiceTest">🔊 영어 소리 들어 보기</button>
+      <div id="voiceMsg" role="status" aria-live="polite"></div>
+    </div>
     <div class="card small">
       <h2>안내</h2>
       <ul>
@@ -209,6 +215,15 @@
   </div>
 </div>
 
+<!-- 외우기(카드 넘기기, 듣고 쓰기) -->
+<div id="study" class="solve" hidden>
+  <div class="solvebar">
+    <div class="st"><b id="studyTitle"></b><span id="studySub" class="hint"></span></div>
+    <button type="button" id="btnStudyClose">닫기</button>
+  </div>
+  <div class="solvewrap" id="studyBody"></div>
+</div>
+
 <script src="js/util.js"></script>
 <script src="js/word.js"></script>
 <script src="js/chunk.js"></script>
@@ -216,6 +231,7 @@
 <script src="js/sync.js"></script>
 <script src="js/quiz.js"></script>
 <script src="js/solve.js"></script>
+<script src="js/study.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
