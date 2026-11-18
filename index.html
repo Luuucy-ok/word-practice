@@ -180,6 +180,8 @@
     </div>
     <div class="card">
       <h2>키보드 확인 (태블릿에서 풀기 전에)</h2>
+      <label class="check"><input type="checkbox" id="appKbd"> 시험·외우기에서 앱 영어 자판 쓰기 (키보드 단어 추천이 안 보여요, 추천)</label>
+      <p class="hint">켜 두면 시험과 외우기 입력칸에서 기기 키보드 대신 화면 아래 앱 자판이 떠요. 대문자는 ⇧ 를 누르고 쓰면 한 글자만 대문자가 돼요. 아래 칸은 기기 키보드를 확인하는 곳이라 기기 키보드가 떠요.</p>
       <p class="hint">아래 칸에 <b>american</b> 이라고 소문자로 써 보세요. 키보드가 첫 글자를 대문자로 바꾸거나 단어를 고치면, 정답을 써도 틀린 것으로 채점돼요.</p>
       <input type="text" id="kbdTest" class="ans" lang="en" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="american">
       <div id="kbdMsg" role="status" aria-live="polite"></div>
@@ -236,6 +238,7 @@
 <script src="js/chunk.js"></script>
 <script src="js/store.js"></script>
 <script src="js/fun.js"></script>
+<script src="js/kbd.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/quiz.js"></script>
 <script src="js/solve.js"></script>

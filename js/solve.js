@@ -30,11 +30,12 @@
   var cur = null; // { quiz, ctx, answers, graded, inputs, practice }
 
   function input(cls, size) {
-    return el("input", {
+    var inp = el("input", {
       type: "text", "class": "ans " + (cls || ""), size: String(size || 14), lang: "en",
       autocapitalize: "off", autocomplete: "off", autocorrect: "off", spellcheck: "false", enterkeyhint: "next",
       "data-lpignore": "true"
     });
+    return WT.kbd ? WT.kbd.prep(inp) : inp; // 앱 영어 자판(기기 키보드의 단어 추천이 안 보이게)
   }
   // 문장의 ___ 자리를 보여 주는 조각. fillNode 가 있으면 그 자리에 넣는다.
   function sentenceNodes(text, fillNode) {

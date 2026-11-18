@@ -105,6 +105,8 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   var front = await T("#studyCard");
   var firstEn = await cur("c.deck.current().en");
   check(front.indexOf(firstEn.slice(0, 20)) >= 0 && (await H("#studyCard .back")), "카드 앞면에 영문 뜻이 보이고 뒷면(단어)은 숨겨져 있음");
+  var firstKo = await cur("c.deck.current().ko");
+  check((await T("#studyCard .front")).indexOf(firstKo) < 0 && (await ev("document.querySelector('#studyCard .back').textContent")).indexOf(firstKo) >= 0, "단어 카드: 앞면에는 한글 뜻이 없고, 뒷면에 단어와 함께 나옴");
   check(/끝낸 것 0 \/ \d+ · 남은 것 \d+/.test(await T("#studySub")), "위쪽에 「끝낸 것 / 남은 것」 진행 표시");
   await shot("m2_카드앞");
   await click("#studyCard");
@@ -140,13 +142,17 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   check((await ev("window.__spoken.slice(-1)[0].text")) === say0, "문제가 나오면 바로 영어로 읽어 줌");
   var attrs = await ev("Array.from(document.querySelectorAll('#studyBody input.ans')).every(function(i){return i.getAttribute('autocapitalize')==='off'&&i.getAttribute('autocorrect')==='off'&&i.getAttribute('spellcheck')==='false'&&i.getAttribute('autocomplete')==='off'})");
   check(attrs, "입력칸에서 자동 대문자·자동 수정·맞춤법 검사·자동 완성을 끔");
-  check(!/[a-z]{3,}/i.test((await T("#studyCard")).replace(/다시 듣기|천천히 듣기/g, "").replace(/[^\x00-\x7f]/g, "").replace(/Key Vocabulary/g, "")), "듣고 쓰기 화면에는 정답 영어가 보이지 않음(한글 뜻만)");
+  var lw0 = await cur("{word:c.deck.current().word,en:c.deck.current().en,ko:c.deck.current().ko}");
+  var lcard = await T("#studyCard");
+  check(lcard.indexOf(lw0.word) < 0 || lw0.en.indexOf(lw0.word) >= 0, "듣고 쓰기 화면에는 정답 단어가 보이지 않음");
+  check(lcard.indexOf(lw0.en.slice(0, 20)) >= 0 && lcard.indexOf(lw0.ko) < 0, "단어 단원 듣고 쓰기: 시험지처럼 영문 뜻만 보이고 한글 뜻은 답하기 전에 숨김");
   await click("#studyBody button.say:nth-child(2)");
   check((await ev("window.__spoken.slice(-1)[0].rate")) < 0.8, "「천천히 듣기」는 느리게 읽어 줌");
   var wrongWord = await typeAns("cap");
   await ev("(function(){var i=WT.study._current().inputs[0];i.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))})()");
   var fixT = await T("#studyFix");
   check(/정답/.test(fixT) && /대소문자가 달라요/.test(fixT) && fixT.indexOf(wrongWord) >= 0, "틀리면(Enter 로 확인) 정답과 이유(대소문자)가 나오고 「뒤에서 다시 나와요」");
+  check(fixT.indexOf("뜻: " + lw0.ko) >= 0, "답을 확인한 뒤에는 한글 뜻이 나옴");
   await shot("m5_듣고쓰기_틀림");
   await click("#btnNext");
   check((await ev("WT.store.isWeak(WT.store.list().filter(function(x){return x.kind==='word'})[0].id," + JSON.stringify(wrongWord) + ")")), "처음 틀린 단어는 바로 약한 목록에 들어감");

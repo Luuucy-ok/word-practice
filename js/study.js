@@ -243,6 +243,16 @@
       item.ko ? el("div", { "class": "fko", text: item.ko }) : null
     ]);
   }
+  // 문제에 보여 줄 뜻. 월·수 단어 시험지에는 영문 뜻만 나오므로 단어 항목은 영문 뜻만 보여 주고,
+  // 한글 뜻은 답을 확인하거나 카드를 뒤집은 뒤에 보여 준다(koAfter). chunk 시험지에는 한글 뜻·해석이 나오므로 그대로 둔다.
+  function koAfter(item) { return item.group === "단어" && !!item.en; }
+  function questionMeaning(item) {
+    if (koAfter(item)) return el("div", { "class": "fmean" }, [el("div", { "class": "fen", text: item.en })]);
+    return item.ko ? el("div", { "class": "fmean" }, [el("div", { "class": "fko", text: item.ko })]) : null;
+  }
+  function koReveal(item) {
+    return koAfter(item) && item.ko ? el("div", { "class": "fko reveal", text: "뜻: " + item.ko }) : null;
+  }
   function sayBtn(item, slow, label) {
     return el("button", { type: "button", "class": "say", text: label || (slow ? "🐢 천천히 듣기" : "🔊 듣기"), onclick: function (e) { e.stopPropagation(); speech.say(item.say, slow); } });
   }
@@ -313,7 +323,7 @@
       box.appendChild(el("div", { "class": "row", style: "margin-top:8px" }, [
         el("button", { type: "button", text: "🔊 영어 소리 들어 보기", onclick: function () { speech.say("Hello! Let's practice spelling.", false); } })
       ]));
-      box.appendChild(el("p", { "class": "hint", style: "margin-top:8px", text: "한글 뜻이 함께 나와요. 철자, 대소문자, -ed·-s 까지 정확히 써야 맞아요. 틀린 것은 다시 나오고, 처음에 틀린 것은 약한 목록에 들어가요." }));
+      box.appendChild(el("p", { "class": "hint", style: "margin-top:8px", text: (cur.lesson.kind === "word" ? "시험지처럼 영문 뜻이 함께 나오고, 한글 뜻은 답을 확인한 뒤에 나와요. " : "한글 뜻이 함께 나와요. ") + "철자, 대소문자, -ed·-s 까지 정확히 써야 맞아요. 틀린 것은 다시 나오고, 처음에 틀린 것은 약한 목록에 들어가요." }));
     }
 
     box.appendChild(el("div", { "class": "row solveend" }, [
@@ -382,12 +392,13 @@
     var english = cur.pref.face === "english";
     var front = el("div", { "class": "fside front" }, [
       el("div", { "class": "fgroup", text: item.group + (item.pos ? " · " + item.pos : "") }),
-      english ? phrase(item, "filled") : meaning(item),
+      english ? phrase(item, "filled") : questionMeaning(item),
       !english && !singleBlank(item) ? phrase(item, "blank") : null,
       english ? sayBtn(item, false) : null
     ]);
     var back = el("div", { "class": "fside back", hidden: "hidden" }, [
       english ? meaning(item) : phrase(item, "filled"),
+      english ? null : koReveal(item),
       english ? null : el("div", { "class": "row", style: "justify-content:center" }, [sayBtn(item, false), sayBtn(item, true)])
       // 단원 데이터의 note 는 부모님용 메모(교재·시험지 차이 등)라서 아이 화면에는 보여 주지 않는다.
     ]);
@@ -416,10 +427,11 @@
 
   // ---------------------------------------------------------------- 3) 듣고 쓰기
   function ansInput(size) {
-    return el("input", {
+    var inp = el("input", {
       type: "text", "class": "ans " + (size === "long" ? "long" : "inline"), lang: "en",
       autocapitalize: "off", autocomplete: "off", autocorrect: "off", spellcheck: "false", enterkeyhint: "done", "data-lpignore": "true"
     });
+    return WT.kbd ? WT.kbd.prep(inp) : inp; // 앱 영어 자판(기기 키보드의 단어 추천이 안 보이게)
   }
 
   // 듣고 쓰기(listen)와 첫 글자 힌트 쓰기(hint)가 같은 화면을 쓴다.
@@ -445,7 +457,7 @@
     var card = el("div", { "class": "flash listen", id: "studyCard" }, [
       el("div", { "class": "fgroup", text: item.group + (hint && item.pos ? " · " + item.pos : "") }),
       hint ? null : el("div", { "class": "row", style: "justify-content:center" }, [sayBtn(item, false, "🔊 다시 듣기"), sayBtn(item, true)]),
-      hint ? meaning(item) : (item.ko ? el("div", { "class": "fko", text: item.ko }) : null),
+      questionMeaning(item),
       hint ? el("div", { "class": "fhint", id: "studyHint" }, item.answers.map(function (a, k) {
         return el("span", { text: (item.answers.length > 1 ? (k + 1) + ") " : "") + hintOf(a) });
       })) : null,
@@ -483,6 +495,8 @@
         el("div", { "class": "why", text: WT.quiz.reasonText({ kind: cur.lesson.kind }, r.reason) + " · 이 문제는 뒤에서 다시 나와요." })
       ]));
     }
+    var kr = koReveal(item);
+    if (kr) fix.appendChild(kr);
     var row = $("studyBtns");
     clear(row);
     var nb = el("button", { type: "button", "class": "primary", id: "btnNext", text: "다음", onclick: nextListen });
@@ -516,7 +530,7 @@
     clear(body);
     var card = el("div", { "class": "flash listen tiles", id: "studyCard" }, [
       el("div", { "class": "fgroup", text: item.group + (spec.kind === "letters" && item.pos ? " · " + item.pos : "") }),
-      spec.kind === "letters" ? meaning(item) : (item.ko ? el("div", { "class": "fko", text: item.ko }) : null),
+      questionMeaning(item),
       el("div", { "class": "tline " + spec.kind, id: "tileSlots" }),
       el("div", { "class": "row tpool", id: "tilePool" }),
       el("div", { id: "studyFix" })
@@ -583,6 +597,8 @@
         el("div", { "class": "why", text: "이 문제는 뒤에서 다시 나와요." })
       ]));
     }
+    var kr = koReveal(item);
+    if (kr) fix.appendChild(kr);
     var row = $("studyBtns");
     clear(row);
     var nb = el("button", { type: "button", "class": "primary", id: "btnNext", text: "다음", onclick: function () {

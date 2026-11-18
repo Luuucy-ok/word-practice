@@ -911,6 +911,7 @@
     var s = WT.store.settings();
     $("nameA").value = s.nameA;
     $("nameB").value = s.nameB;
+    $("appKbd").checked = WT.kbd.enabled();
     $("storageNote").textContent = WT.store.isPersistent()
       ? "가져온 단원은 이 기기의 브라우저에 저장돼요. 브라우저 데이터를 지우면 사라지니 백업 파일을 만들어 두세요."
       : "이 브라우저에서는 저장을 쓸 수 없어서, 창을 닫으면 가져온 단원이 사라져요. 비공개 창이면 일반 창으로 열어 주세요.";
@@ -955,6 +956,8 @@
     WT.study.bind();
     $("kbdTest").addEventListener("input", checkKeyboard);
     $("soundOn").addEventListener("change", function () { WT.fun.setSound($("soundOn").checked); WT.fun.sound("ok"); });
+    WT.kbd.bind();
+    $("appKbd").addEventListener("change", function () { WT.kbd.setEnabled($("appKbd").checked); });
     $("btnVoiceTest").addEventListener("click", function () {
       var ok = WT.speech.say("Hello! Let's practice spelling.", false);
       var st = WT.speech.status();
