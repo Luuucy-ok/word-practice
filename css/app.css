@@ -140,5 +140,16 @@ button.say{min-height:48px}
 input.ans.bad{border-color:var(--warn);background:var(--warn-bg)}
 #study .score{font-size:20px}
 #study .score b{font-size:26px;color:#dc2626}
+.fhint{display:flex;flex-direction:column;gap:4px;font-family:ui-monospace,Consolas,monospace;font-size:24px;letter-spacing:3px;color:var(--sub)}
+.tline{font-size:24px;line-height:2.4;max-width:100%}
+.tline .tctx{white-space:pre-wrap}
+.tslot{display:inline-block;min-width:1.3em;height:1.5em;margin:0 3px;border-bottom:3px solid var(--line);vertical-align:middle}
+.tline.blocks .tslot{min-width:3.2em}
+.tgap{display:inline-block;width:1em}
+button.tile{min-width:52px;min-height:52px;padding:4px 12px;font-size:24px;font-family:ui-monospace,Consolas,monospace;font-weight:600}
+.tline button.tile{min-height:44px;margin:0 3px;vertical-align:middle;border-color:var(--brand);color:var(--brand)}
+button.tile.placed:disabled{opacity:1;cursor:default}
+.flash.wrong .tline button.tile{border-color:var(--sub);color:var(--sub)}
+.tpool{justify-content:center;gap:10px}
 [hidden]{display:none !important}
 @media (max-width:520px){ main{padding:12px} .card{padding:14px} }

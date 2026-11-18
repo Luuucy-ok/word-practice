@@ -94,7 +94,7 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   // 1) 단원 카드 → 외우기
   await clickCard(wTitle, "외우기");
   await sleep(200);
-  check(!(await H("#study")) && (await ev("document.querySelectorAll('#studyBody button.act').length")) === 2, "단원 카드의 「외우기」로 고르기 화면이 열리고 활동 2가지(카드 넘기기, 듣고 쓰기)가 보임");
+  check(!(await H("#study")) && (await ev("Array.from(document.querySelectorAll('#studyBody button.act')).map(function(b){return b.getAttribute('data-act')}).join()")) === "cards,listen,hint,letters", "단원 카드의 「외우기」로 고르기 화면이 열리고, 단어 단원은 활동 4가지(카드, 듣고 쓰기, 첫 글자 힌트, 글자 순서)가 보임");
   check(/전체/.test(await T("#studyBody")) && /약한 항목만 \(0개\)/.test(await T("#studyBody")), "범위 고르기: 전체 / 약한 항목만(0개)");
   await shot("m1_고르기");
 
@@ -200,6 +200,95 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   await click("#studyCard");
   check((await T("#studyCard .back")).indexOf(it0.ko) >= 0, "뒤집으면 한글 뜻이 보임");
   await shot("m9_콜로케이션카드");
+  await click("#btnStudyClose");
+
+  // 5-2) 첫 글자 힌트 쓰기(단어 단원)
+  var wid = "WT.store.list().filter(function(x){return x.kind==='word'})[0]";
+  await clickCard(wTitle, "외우기");
+  await click("#studyBody button.act[data-act=hint]");
+  await click("#studyBody button.opt[data-scope=all]");
+  var nSpoken = await ev("window.__spoken.length");
+  await click("#btnStudyStart");
+  await sleep(150);
+  var hw = await cur("{word:c.deck.current().word,en:c.deck.current().en,say:c.deck.current().say}");
+  check((await T("#studyHint")) === (await ev("WT.study.hintOf(" + JSON.stringify(hw.word) + ")")) && (await T("#studyCard")).indexOf(hw.en.slice(0, 20)) >= 0, "첫 글자 힌트 쓰기: 영문 뜻과 첫 글자 힌트(" + (await T("#studyHint")) + ")가 보임");
+  check((await ev("window.__spoken.length")) === nSpoken, "힌트 쓰기는 문제를 낼 때 소리로 답을 알려 주지 않음");
+  await shot("m10_힌트쓰기");
+  var hWrong = await typeAns("cap");
+  await click("#btnCheck");
+  check(/대소문자가 달라요/.test(await T("#studyFix")) && (await ev("window.__spoken.slice(-1)[0].text")) === hw.say, "틀리면 정답과 이유가 나오고, 확인한 뒤에 소리를 들려줌");
+  await click("#btnNext");
+  check(await ev("WT.store.isWeak(" + wid + ".id," + JSON.stringify(hWrong) + ")"), "힌트 쓰기에서 처음 틀린 단어는 약한 목록에 들어감");
+  steps = 0;
+  while (!(await cur("c.deck.finished()")) && steps < 50) { await typeAns("ok"); await click("#btnCheck"); await click("#btnNext"); steps++; }
+  check(steps === N && /약한 목록에 넣었어요/.test(await T("#studyBody")), "힌트 쓰기: " + N + "개를 모두 맞히면 끝나고, 약한 목록에 넣은 것을 알려 줌");
+  await click("#btnStudyClose");
+
+  // 5-3) 글자 순서 맞추기(단어 단원): 조각 넣고 빼기, 틀리면 다시, 약한 목록은 그대로
+  // right: true 면 정답 순서, false 면 섞인 순서 그대로(정답과 다르게 섞여 있으므로 틀림)
+  function placeTiles(right) {
+    return ev("(function(right){var c=WT.study._current();var n=c.tiles.spec.tokens.length;for(var i=0;i<n;i++){" +
+      "var bs=Array.from(document.querySelectorAll('#tilePool button.tile'));" +
+      "var b=right?bs.filter(function(x){return x.getAttribute('data-tile')===String(i)})[0]:bs[0];b.click();}return c.tiles.spec.target})(" + right + ")");
+  }
+  var weakBefore = await ev("WT.store.weakCount(" + wid + ")");
+  await clickCard(wTitle, "외우기");
+  await click("#studyBody button.act[data-act=letters]");
+  await click("#btnStudyStart");
+  await sleep(150);
+  var lw = await cur("c.deck.current().word");
+  var poolTxt = await ev("Array.from(document.querySelectorAll('#tilePool button.tile')).map(function(b){return b.textContent}).join('')");
+  check(poolTxt.length === lw.replace(/\s/g, "").length && poolTxt.split("").sort().join("") === lw.replace(/\s/g, "").split("").sort().join("") && poolTxt !== lw.replace(/\s/g, ""), "글자 순서 맞추기: 단어(" + lw + ")의 글자가 섞여서 나옴(" + poolTxt + ")");
+  check((await ev("document.querySelectorAll('#tileSlots .tslot').length")) === lw.replace(/\s/g, "").length, "빈 자리가 글자 수만큼 보임");
+  await ev("document.querySelector('#tilePool button.tile').click()");
+  check((await ev("document.querySelectorAll('#tileSlots button.tile').length")) === 1, "글자를 누르면 자리에 놓임");
+  await ev("document.querySelector('#tileSlots button.tile').click()");
+  check((await ev("document.querySelectorAll('#tilePool button.tile').length")) === poolTxt.length, "놓은 글자를 다시 누르면 빠짐");
+  await shot("m11_글자맞추기");
+  await placeTiles(false);
+  check(/정답/.test(await T("#studyFix")) && (await T("#studyFix")).indexOf(lw) >= 0 && /다시 나와요/.test(await T("#studyFix")), "다 놓으면 저절로 확인하고, 틀리면 정답과 「다시 나와요」");
+  await shot("m12_글자맞추기_틀림");
+  await click("#btnNext");
+  steps = 0;
+  while (!(await cur("c.deck.finished()")) && steps < 50) {
+    await placeTiles(true);
+    if (steps === 0) check(/맞았어요/.test(await T("#studyFix")) && (await ev("window.__spoken.slice(-1)[0].text")) === (await cur("c.deck.current().say")), "순서대로 놓으면 맞고, 단어를 읽어 줌");
+    await click("#btnNext"); steps++;
+  }
+  check(steps === N && (await T("#studyBody")).indexOf("처음에 틀린 것: " + lw) >= 0, "틀린 단어는 뒤에 다시 나와서 " + N + "개를 모두 맞히면 끝남");
+  check((await ev("WT.store.weakCount(" + wid + ")")) === weakBefore && !/약한 목록에 넣었어요/.test(await T("#studyBody")), "글자 순서 맞추기는 약한 목록을 바꾸지 않음");
+  await click("#btnStudyClose");
+
+  // 5-4) chunk 블록 맞추기(chunk 단원만)
+  await clickCard(cTitle, "외우기");
+  check((await ev("Array.from(document.querySelectorAll('#studyBody button.act')).map(function(b){return b.getAttribute('data-act')}).join()")) === "cards,listen,hint,letters,blocks", "chunk 단원에는 「chunk 블록 맞추기」가 더 보임");
+  await click("#studyBody button.act[data-act=blocks]");
+  await ev("(function(){var b=document.querySelector(\"#studyBody button.opt[data-group='Chunk 문장']\");if(!b.classList.contains('on'))b.click()})()");
+  await ev("(function(){var b=document.querySelector(\"#studyBody button.opt[data-group='Key Vocabulary']\");if(b.classList.contains('on'))b.click()})()");
+  await click("#btnStudyStart");
+  await sleep(150);
+  check((await cur("c.deck.total")) === nChunk, "Chunk 문장만 고르면 chunk 문장 " + nChunk + "개가 블록 문제로 나옴");
+  var bi = await cur("{before:c.deck.current().before,after:c.deck.current().after,blocks:c.deck.current().blocks,say:c.deck.current().say}");
+  var slotT = await T("#tileSlots");
+  check(slotT.indexOf(bi.before.trim()) >= 0 && (await ev("document.querySelectorAll('#tileSlots .tslot').length")) === bi.blocks.length && (await ev("document.querySelectorAll('#tilePool button.tile').length")) === bi.blocks.length, "블록 맞추기: 앞뒤 문장은 보이고, chunk 부분은 단어 블록 " + bi.blocks.length + "개로 섞여 나옴");
+  await ev("document.querySelector('#tilePool button.tile').click()");
+  await click("#btnTileReset");
+  check((await ev("document.querySelectorAll('#tilePool button.tile').length")) === bi.blocks.length, "「다시 놓기」를 누르면 블록이 모두 돌아감");
+  await shot("m13_블록맞추기");
+  await placeTiles(true);
+  check(/맞았어요/.test(await T("#studyFix")) && (await ev("window.__spoken.slice(-1)[0].text")) === bi.say, "순서대로 놓으면 맞고, 문장 전체를 읽어 줌");
+  await shot("m14_블록맞추기_맞음");
+  await click("#btnStudyClose");
+  await clickCard(cTitle, "외우기");
+  await click("#studyBody button.opt[data-group='Key Vocabulary']");
+  await click("#studyBody button.opt[data-group='Chunk 문장']");
+  await click("#btnStudyStart");
+  var kv = await cur("{say:c.deck.current().say,group:c.deck.current().group,n:c.deck.total}");
+  var kvExpect = await ev("WT.study.items(" + JSON.stringify(C) + ").filter(function(x){return x.group==='Key Vocabulary'&&WT.study.fits(x,'blocks')}).length");
+  check(kv.group === "Key Vocabulary" && kv.n === kvExpect && (await ev("document.querySelectorAll('#tilePool button.tile').length")) === kv.say.split(" ").length, "Key Vocabulary 는 콜로케이션 전체가 블록으로 나옴(콜로케이션이 있는 " + kvExpect + "개)");
+  await click("#btnStudyClose");
+  await clickCard(wTitle, "외우기");
+  check((await ev("document.querySelector('#studyBody button.act.on').getAttribute('data-act')")) === "cards", "단어 단원에서는 지난번 「블록 맞추기」 대신 카드 넘기기로 돌아감");
   await click("#btnStudyClose");
 
   // 6) 설정의 소리 확인, 영어 음성이 없을 때 안내

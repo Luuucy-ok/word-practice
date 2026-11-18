@@ -100,5 +100,53 @@ vm.runInThisContext(fs.readFileSync(path.join(root, "js/store.js"), "utf8"), { f
 var res = WT.store.applyGrading("L1", { apple: false });
 check(res.added.length === 1 && WT.store.isWeak("L1", "apple"), "처음 틀리면 약한 목록에 들어감(화면 시험과 같은 저장)");
 
+// --- 6) 첫 글자 힌트
+check(S.hintOf("environment") === "e__________", "힌트: 첫 글자 + 나머지 글자 수만큼 밑줄");
+check(S.hintOf("make a big plan") === "m___ a b__ p___", "힌트: 여러 단어면 단어마다 첫 글자");
+check(S.hintOf("won't, New York") === "w__'_, N__ Y___", "힌트: 문장 부호와 대문자 첫 글자는 그대로");
+
+// --- 7) 활동별로 연습할 수 있는 항목, 맞추기 조각
+var bad7 = [], nLetters = 0, nBlocks = 0, kinds = {};
+files.forEach(function (f) {
+  var d = JSON.parse(fs.readFileSync(path.join(dataDir, f), "utf8"));
+  var acts = S.actsFor(d.kind).map(function (a) { return a.id; }).join();
+  kinds[d.kind] = acts;
+  S.items(d).forEach(function (it) {
+    ["cards", "listen", "hint"].forEach(function (a) { if (!S.fits(it, a)) bad7.push(f + ": " + a + " 에서 빠짐 " + it.key); });
+    if (S.fits(it, "letters")) {
+      nLetters++;
+      if (it.group === "Chunk 문장") bad7.push(f + ": chunk 문장이 글자 맞추기에 들어감 " + it.key);
+      var sp = S.tileSpec(it, "letters");
+      var all = sp.tokens.map(function (_, i) { return i; });
+      if (S.tileBuilt(sp, all) !== sp.target || sp.target !== it.word.trim()) bad7.push(f + ": 글자 맞추기 복원 실패 " + it.key);
+      if (sp.tokens.some(function (t) { return /\s/.test(t); })) bad7.push(f + ": 글자 조각에 공백 " + it.key);
+    } else if (it.group !== "Chunk 문장") bad7.push(f + ": 단어가 글자 맞추기에서 빠짐 " + it.key);
+    if (S.fits(it, "blocks")) {
+      nBlocks++;
+      if (d.kind !== "chunk") bad7.push(f + ": 단어 단원에 블록 항목 " + it.key);
+      var sb = S.tileSpec(it, "blocks");
+      var whole = sb.before + S.tileBuilt(sb, sb.tokens.map(function (_, i) { return i; })) + sb.after;
+      if (whole !== it.say) bad7.push(f + ": 블록 복원 실패 " + it.key + " → " + whole);
+    }
+  });
+});
+check(!bad7.length, "활동별 항목: 카드·듣고 쓰기·힌트는 전부, 글자 맞추기는 단어·Key Vocabulary " + nLetters + "개, 블록은 chunk " + nBlocks + "개이고 조각을 순서대로 놓으면 원래 글이 됨" + (bad7.length ? "\n  " + bad7.slice(0, 10).join("\n  ") : ""));
+check(kinds.word === "cards,listen,hint,letters" && kinds.chunk === "cards,listen,hint,letters,blocks", "chunk 블록 맞추기는 chunk 단원에만 보임");
+
+var spL = S.tileSpec({ word: "fed up", group: "단어" }, "letters");
+check(spL.tokens.join("") === "fedup" && S.tileBuilt(spL, [0, 1, 2, 3, 4]) === "fed up", "글자 맞추기: 띄어쓰기는 자리로 남고 글자만 조각이 됨");
+check(S.tileBuilt(spL, [0, 2, 1, 3, 4]) !== "fed up", "글자 맞추기: 순서가 다르면 틀림");
+var spD = S.tileSpec({ word: "look", group: "단어" }, "letters");
+check(S.tileBuilt(spD, [0, 2, 1, 3]) === "look", "글자 맞추기: 같은 글자(o, o)는 어느 조각을 놓아도 맞음");
+var spB = S.tileSpec({ blocks: ["put", "on", "a", "hat"], before: "Please ", after: " before you go out." }, "blocks");
+check(S.tileBuilt(spB, [0, 1, 2, 3]) === "put on a hat" && S.tileBuilt(spB, [0, 2, 1, 3]) !== spB.target, "블록 맞추기: 순서대로 놓아야 맞음");
+var sameN = 0;
+for (var s2 = 1; s2 <= 300; s2++) {
+  var o = S.shuffledOrder(["h", "a", "n", "d"], new WT.util.Rng(s2));
+  if (o.join() === "0,1,2,3") sameN++;
+}
+check(sameN === 0, "섞은 조각이 정답 순서 그대로 나오지 않음(300번)");
+check(S.shuffledOrder(["o", "o"], new WT.util.Rng(1)).length === 2, "조각이 모두 같아도 멈추지 않음");
+
 console.log(fails === 0 ? "외우기 규칙 점검 모두 통과" : "실패 " + fails + "건");
 process.exit(fails === 0 ? 0 : 1);
