@@ -72,6 +72,12 @@ var C = load(/^A_chunk.*L07-08/);
   }
   function sheet() { return ev("document.getElementById('sheet').srcdoc"); }
 
+
+  // 단어 시험지는 「전체 쓰기」가 기본이라, 학원 시험 모양(10문항·100점)을 보는 점검은 종류 버튼으로 바꾼다.
+  async function toRegular() {
+    await ev("document.querySelector('.seg[data-for=wMode] button[data-v=regular]').click()");
+    await sleep(400);
+  }
   await send("Page.enable");
   await send("Runtime.enable");
   await open();
@@ -103,7 +109,7 @@ var C = load(/^A_chunk.*L07-08/);
   check(/틀린 항목 3개/.test(await cardText(wTitle)), "단원 카드에 「틀린 항목 3개」가 보임");
 
   // 3) 약한 단어만 재시험지
-  await clickCard(wTitle, "시험지 만들기");
+  await clickCard(wTitle, "시험지 만들기"); await toRegular();
   await sleep(500);
   var wt = await T("#wWeakText");
   check(!(await ev("document.getElementById('wWeak').disabled")) && /3개/.test(wt), "시험지 만들기에서 「약한 단어만」이 켜지고 3개라고 나옴: " + wt);
@@ -144,7 +150,7 @@ var C = load(/^A_chunk.*L07-08/);
   await ev("document.getElementById('cWeak').click()");
   await sleep(500);
   var ch = await sheet();
-  check(ch.indexOf("약한 항목 재시험") >= 0 && /범위 전체/.test(await T("#makeInfo")), "chunk 재시험지 제목에 「약한 항목 재시험」이 있고 범위 전체 방식이라고 알려 줌");
+  check(ch.indexOf("약한 항목 재시험") >= 0 && /범위 전체/.test(await ev("document.getElementById('makeInfo').textContent")), "chunk 재시험지 제목에 「약한 항목 재시험」이 있고 범위 전체 방식이라고 알려 줌");
   var vWords = [C.vocab[0].word, C.vocab[1].word];
   check(ch.indexOf("범위 전체 연습") >= 0 && vWords.every(function (w) { return ch.indexOf(w) >= 0; }), "chunk 재시험지에 표시한 단어가 들어 있음(" + vWords.join(", ") + ")");
   await shot("w4_chunk_재시험지");

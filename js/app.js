@@ -898,7 +898,7 @@
     var text = isWord ? $("wWeakText") : $("cWeakText");
     box.disabled = n === 0;
     if (n === 0) box.checked = false;
-    text.textContent = (isWord ? "약한 단어만 (틀린 단어 재시험)" : "약한 항목만 (틀린 단어·chunk 재시험)") + (n ? " · " + n + "개" : " · 표시한 것이 없어요");
+    text.textContent = (isWord ? "🔁 약한 단어만" : "🔁 약한 항목만") + (n ? " · " + n + "개" : " · 표시한 것이 없어요");
   }
 
   // 틀린 단어를 고르는 화면. 누를 때마다 이 기기에 바로 저장한다.
@@ -979,9 +979,10 @@
     var d = it.data;
     $("makeEmpty").hidden = true;
     $("makePanel").hidden = false;
-    $("makeTitle").textContent = ownerLabel(d.owner) + " · " + (it.kind === "word" ? "단어 Lesson " + d.lesson + (d.title ? " " + d.title : "") : (d.title || "Chunk Quiz"));
+    $("makeTitle").textContent = KIND[it.kind].icon + " " + (it.kind === "word" ? "Lesson " + d.lesson + (d.title ? " " + d.title : "") : (d.title || "Chunk Quiz")) + " · " + ownerLabel(d.owner);
     $("optsWord").hidden = it.kind !== "word";
     $("optsChunk").hidden = it.kind !== "chunk";
+    $("cHintBox").hidden = it.kind !== "chunk";
     $("optSeed").value = "";
     $("optClass").value = d.class_code || "";
     $("makeInfo").hidden = true;
@@ -990,10 +991,11 @@
     $("cWeak").checked = false;
     updateWeakControls();
     if (it.kind === "word") {
-      $("wMode").value = "regular";
-      $("wPartsBox").hidden = true;
+      // 단어는 「전체 쓰기」(모든 단어를 직접 쓰기)가 기본(2026-11-18 사용자 요청). 학원 시험 모양은 버튼으로 고름
+      $("wMode").value = "all-write";
+      $("wPartsBox").hidden = false;
     } else {
-      $("cMode").value = "sample";
+      $("cMode").value = "full"; // chunk 는 「범위 전체」가 기본(2026-11-18 사용자 요청). 학원 시험 모양은 버튼으로 고름
       var sel = $("cHint");
       clear(sel);
       sel.appendChild(el("option", { value: "", text: "이 데이터의 기준 (" + (d.hint === "first" ? "첫 글자 있음" : "없음") + ")" }));
@@ -1001,8 +1003,21 @@
       sel.appendChild(el("option", { value: "first", text: "첫 글자 힌트 있음" }));
       sel.value = "";
     }
+    syncSegs();
     showTab("make");
     generate();
+  }
+
+  // 종류 고르기 버튼(.seg)을 숨긴 선택 상자 값에 맞춰 켠다.
+  function syncSegs() {
+    Array.prototype.forEach.call(document.querySelectorAll(".seg[data-for]"), function (g) {
+      var v = $(g.getAttribute("data-for")).value;
+      Array.prototype.forEach.call(g.querySelectorAll("button"), function (b) {
+        var on = b.getAttribute("data-v") === v;
+        b.classList.toggle("on", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    });
   }
 
   function infoLine(data, kind, seed, warnings) {
@@ -1011,11 +1026,17 @@
     var rule = kind === "word"
       ? "문장 규칙: " + sourcesText(data.sentence_sources) + (data.require_sentence_ko ? " (정답지에 해석 포함)" : "")
       : "Fill in 힌트: " + (data.hint === "first" ? "첫 글자 있음" : "없음");
-    box.appendChild(el("div", { text: "대상 " + ownerLabel(data.owner) + " · " + (kind === "word" ? "단원 Lesson " + data.lesson : (data.title || "")) + " · " + rule + " · 시험지 번호 " + seed }));
-    if (!data.verified) {
-      box.appendChild(el("div", { "class": "msg err", text: "⚠ 교재와 대조하기 전 데이터예요. 아이에게 주기 전에 부모님이 확인해 주세요." }));
-    }
-    (warnings || []).forEach(function (w) { box.appendChild(el("div", { "class": "msg warn", text: w })); });
+    // 아이에게는 시험지 번호만 보이고, 대상·문장 규칙·교재 대조 경고는 「⋯ 부모님용」 안에 접어 둔다.
+    // 만들 때 알림(뺀 단어, 다른 힌트, 범위 전체 방식 등)도 부모님용이라 같이 접고, 요약 줄에 개수만 보인다.
+    var ws = warnings || [];
+    box.appendChild(el("div", { "class": "mkline" }, [
+      el("span", { "class": "seedno", text: "시험지 번호 " + seed }),
+      el("details", { "class": "parentbox inline" }, [
+        el("summary", { text: "⋯ 부모님용" + (data.verified ? "" : " · 교재 대조 전") + (ws.length ? " · 알림 " + ws.length + "개" : "") }),
+        el("div", { "class": "hint", style: "margin:4px 0 0", text: "대상 " + ownerLabel(data.owner) + " · " + (kind === "word" ? "단원 Lesson " + data.lesson : (data.title || "")) + " · " + rule }),
+        data.verified ? null : el("div", { "class": "msg err", text: "⚠ 교재와 대조하기 전 데이터예요. 아이에게 주기 전에 부모님이 확인해 주세요." })
+      ].concat(ws.map(function (w) { return el("div", { "class": "msg warn", text: w }); })))
+    ]));
     box.hidden = false;
   }
 
@@ -1189,6 +1210,15 @@
     document.addEventListener("visibilitychange", function () { if (!document.hidden) runSync(false); });
     window.addEventListener("online", function () { runSync(false); });
     $("btnMake").addEventListener("click", function () { $("optSeed").value = ""; generate(); });
+    // 종류 고르기 버튼: 숨긴 선택 상자 값을 바꾸고 change 를 보내 기존 흐름(시험지 다시 만들기)을 탄다.
+    Array.prototype.forEach.call(document.querySelectorAll(".seg[data-for] button"), function (b) {
+      b.addEventListener("click", function () {
+        var sel = $(b.parentNode.getAttribute("data-for"));
+        if (sel.value === b.getAttribute("data-v")) return;
+        sel.value = b.getAttribute("data-v");
+        sel.dispatchEvent(new Event("change"));
+      });
+    });
     $("btnPrint").addEventListener("click", printSheet);
     $("btnSolve").addEventListener("click", openSolve);
     WT.solve.bind();
@@ -1216,6 +1246,7 @@
     ["wMode", "wParts", "wWeak", "cMode", "cHint", "cWeak", "optKey"].forEach(function (id) {
       $(id).addEventListener("change", function () {
         if (id === "wMode") $("wPartsBox").hidden = $("wMode").value !== "all-write";
+        syncSegs();
         $("optSeed").value = "";
         generate();
       });

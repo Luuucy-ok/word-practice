@@ -96,11 +96,23 @@ function getJson(url) {
   }
   // 단원 줄은 이름(숨긴 글자)이 아이 이름보다 앞에 오고, 아이 이름·부모님용은 숨기거나 접으므로 textContent 로 찾는다.
   await openMaker(/단어 Lesson 7[\s\S]*아이 B/);
+  var html0 = await ev("document.getElementById('sheet').srcdoc");
+  check((await ev("document.getElementById('wMode').value")) === "all-write" && (await ev("document.querySelector('.seg[data-for=wMode] button.on').getAttribute('data-v')")) === "all-write" && !(await ev("document.getElementById('wPartsBox').hidden")) && /전체 쓰기 연습/.test(html0), "단어 시험지는 「전체 쓰기」가 기본(낼 파트 버튼도 보임)");
+  // 아래는 학원 시험 모양으로 바꿔서 확인한다
+  await ev("document.querySelector('.seg[data-for=wMode] button[data-v=regular]').click()");
+  await sleep(500);
   var html1 = await ev("document.getElementById('sheet').srcdoc");
   check(html1.length > 5000 && /Lesson 7/.test(html1), "시험지가 미리보기에 나옴");
   check((html1.match(/<tr class="[wm]">/g) || []).length === 10, "10문항");
-  var info = await ev("document.getElementById('makeInfo').innerText");
-  check(/대상 아이 B/.test(info) && /연습 페이지 문장만/.test(info), "대상과 문장 규칙이 한 줄로 보임: " + info.split("\n")[0]);
+  var info = await ev("document.getElementById('makeInfo').textContent"); // 대상·문장 규칙은 접힌 「부모님용」 안
+  check(/대상 아이 B/.test(info) && /연습 페이지 문장만/.test(info), "대상과 문장 규칙이 「부모님용」 안에 있음");
+  // 시험지 탭 위쪽이 짧고, 아이에게는 시험지 번호만 보임
+  var topH = await ev("Math.round(document.querySelector('#makePanel .makecard').getBoundingClientRect().height)");
+  check(topH <= 260, "시험지 위쪽 설정 칸이 짧음(" + topH + "px, 260px 이하)");
+  var vis = await ev("document.getElementById('makeInfo').innerText");
+  check(/시험지 번호 \d+/.test(vis) && !/대상 아이|문장 규칙|교재와 대조하기 전/.test(vis), "시험지 위에는 번호만 보이고 대상·문장 규칙·교재 대조 경고는 접혀 있음");
+  check((await ev("Array.from(document.querySelectorAll('#makePanel .mkacts button')).map(function(b){return b.id+(b.classList.contains('primary')?'*':'')}).join()")) === "btnSolve*,btnPrint,btnMake", "버튼 한 줄: 「태블릿에서 풀기」만 진한 버튼, 인쇄·새 시험지는 테두리");
+  check((await ev("document.querySelector('.seg[data-for=wMode] button.on').getAttribute('data-v')")) === "regular" && (await ev("document.getElementById('wPartsBox').hidden")) && (await ev("document.querySelector('.mkmore').open")) === false, "「학원 시험 모양」을 누르면 그 버튼이 켜지고 낼 파트는 숨고, 나머지 설정은 「⚙ 더 설정」에 접혀 있음");
   var seed1 = (/시험지 번호 (\d+)/.exec(info) || [])[1];
   await ev("document.getElementById('btnMake').click()");
   await sleep(500);
@@ -118,9 +130,10 @@ function getJson(url) {
   check(a === b && a.length > 1000 && /시험지 번호 4242/.test(a), "같은 시험지 번호면 같은 시험지");
   await shot("04_시험지_한선단어");
 
-  // 전체 쓰기 연습
-  await ev("var s=document.getElementById('wMode'); s.value='all-write'; s.dispatchEvent(new Event('change'))");
+  // 전체 쓰기 연습: 종류 버튼을 누르면 바뀜
+  await ev("document.querySelector('.seg[data-for=wMode] button[data-v=all-write]').click()");
   await sleep(500);
+  check((await ev("document.getElementById('wMode').value")) === "all-write" && !(await ev("document.getElementById('wPartsBox').hidden")) && (await ev("document.querySelector('.seg[data-for=wParts] button.on').getAttribute('data-v')")) === "AB", "「전체 쓰기」 버튼을 누르면 종류가 바뀌고 낼 파트(A+B) 버튼이 나옴");
   var html2 = await ev("document.getElementById('sheet').srcdoc");
   check(/Part A\./.test(html2) && /Part B\./.test(html2) && /전체 쓰기 연습/.test(html2), "전체 쓰기 연습 시험지");
   var bad = (html2.match(/\[(교재 예문|새 문장|지난 시험 문장)/g) || []).length;
@@ -140,11 +153,13 @@ function getJson(url) {
   await openMaker(/아이 B[\s\S]*chunk 문장/);
   var html5 = await ev("document.getElementById('sheet').srcdoc");
   check(/Chunk Quiz Lesson 7/.test(html5) && /class="hw"/.test(html5), "한선 chunk 시험지에 첫 글자 힌트가 있음");
-  info = await ev("document.getElementById('makeInfo').innerText");
-  check(/첫 글자 있음/.test(info), "chunk 대상과 힌트가 보임");
+  info = await ev("document.getElementById('makeInfo').textContent");
+  check(/첫 글자 있음/.test(info) && !(await ev("document.getElementById('cHintBox').hidden")) && (await ev("document.querySelector('.seg[data-for=cMode] button.on').getAttribute('data-v')")) === "full" && (await ev("document.getElementById('cMode').value")) === "full", "chunk: 힌트 정보(부모님용)와 「⚙ 더 설정」의 Fill 힌트 칸, 종류는 「범위 전체」가 기본");
+  check(/범위 전체 연습|범위 전체/.test(html5), "기본 chunk 시험지는 범위 전체 연습");
   await ev("var s=document.getElementById('cHint'); s.value='none'; s.dispatchEvent(new Event('change'))");
   await sleep(400);
-  info = await ev("document.getElementById('makeInfo').innerText");
+  info = await ev("document.getElementById('makeInfo').textContent"); // 만들 때 알림은 접힌 「부모님용」 안
+  check(/알림 [0-9]+개/.test(await ev("document.querySelector('#makeInfo .parentbox > summary').textContent")), "알림은 「⋯ 부모님용 · 알림 n개」로 접혀 있음");
   check(/데이터 기준.*다른 힌트/.test(info), "데이터와 다른 힌트로 바꾸면 경고가 뜸");
   await shot("06_시험지_한선chunk");
 

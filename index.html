@@ -85,41 +85,53 @@
   <section id="tab-make" hidden>
     <div id="makeEmpty" class="card">먼저 「단원」 화면에서 단원을 골라 「시험지 만들기」를 눌러 주세요.</div>
     <div id="makePanel" hidden>
-      <div class="card">
+      <!-- 위쪽을 짧게: 제목, 버튼 한 줄(태블릿에서 풀기만 진한 버튼), 자주 바꾸는 종류·약한 것만, 나머지는 「⚙ 더 설정」 -->
+      <div class="card makecard">
         <h2 id="makeTitle"></h2>
-        <div id="optsWord">
-          <label class="field">종류
-            <select id="wMode">
-              <option value="regular">학원 시험 모양 (쓰기 6 + 보기 번호 4)</option>
-              <option value="all-write">전체 쓰기 연습 (모든 단어를 직접 쓰기)</option>
-            </select>
-          </label>
-          <label class="field" id="wPartsBox" hidden>낼 파트
-            <select id="wParts">
-              <option value="AB">Part A + Part B</option>
-              <option value="A">Part A만 (뜻 보고 단어 쓰기)</option>
-              <option value="B">Part B만 (문장 빈칸)</option>
-            </select>
-          </label>
-          <label class="check"><input type="checkbox" id="wWeak"> <span id="wWeakText">약한 단어만 (틀린 단어 재시험)</span></label>
+        <div class="row mkacts">
+          <button type="button" id="btnSolve" class="primary" disabled>✍️ 태블릿에서 풀기</button>
+          <button type="button" id="btnPrint">🖨️ 인쇄 / PDF</button>
+          <button type="button" id="btnMake">🔄 새 시험지</button>
         </div>
-        <div id="optsChunk" hidden>
-          <label class="field">종류
-            <select id="cMode">
-              <option value="sample">학원 시험 모양 (일부만 출제, 20점)</option>
-              <option value="full">범위 전체 연습</option>
-            </select>
-          </label>
-          <label class="field">Fill in 첫 글자 힌트
+        <div id="optsWord" class="mkrow">
+          <div class="seg" data-for="wMode" role="group" aria-label="종류">
+            <button type="button" data-v="all-write">전체 쓰기</button><button type="button" data-v="regular">학원 시험 모양</button>
+          </div>
+          <div class="seg" id="wPartsBox" data-for="wParts" role="group" aria-label="낼 파트" hidden>
+            <button type="button" data-v="AB">A+B</button><button type="button" data-v="A">A만</button><button type="button" data-v="B">B만</button>
+          </div>
+          <label class="chipcheck"><input type="checkbox" id="wWeak"> <span id="wWeakText">약한 단어만</span></label>
+          <!-- 시험지 규칙은 아래 선택 상자 값으로 만든다(위 버튼이 값을 바꿈) -->
+          <select id="wMode" hidden>
+            <option value="all-write">전체 쓰기 연습 (모든 단어를 직접 쓰기)</option>
+            <option value="regular">학원 시험 모양 (쓰기 6 + 보기 번호 4)</option>
+          </select>
+          <select id="wParts" hidden>
+            <option value="AB">Part A + Part B</option>
+            <option value="A">Part A만 (뜻 보고 단어 쓰기)</option>
+            <option value="B">Part B만 (문장 빈칸)</option>
+          </select>
+        </div>
+        <div id="optsChunk" class="mkrow" hidden>
+          <div class="seg" data-for="cMode" role="group" aria-label="종류">
+            <button type="button" data-v="full">범위 전체</button><button type="button" data-v="sample">학원 시험 모양</button>
+          </div>
+          <label class="chipcheck"><input type="checkbox" id="cWeak"> <span id="cWeakText">약한 항목만</span></label>
+          <select id="cMode" hidden>
+            <option value="full">범위 전체 연습</option>
+            <option value="sample">학원 시험 모양 (일부만 출제, 20점)</option>
+          </select>
+        </div>
+        <div id="makeInfo" class="mkinfo" hidden></div>
+        <details class="mkmore">
+          <summary>⚙ 더 설정</summary>
+          <label class="check"><input type="checkbox" id="optKey" checked> 정답지 쪽 포함</label>
+          <label class="field" id="cHintBox">Fill in 첫 글자 힌트
             <select id="cHint"></select>
           </label>
-          <label class="check"><input type="checkbox" id="cWeak"> <span id="cWeakText">약한 항목만 (틀린 단어·chunk 재시험)</span></label>
-        </div>
-        <div class="row" style="margin-bottom:12px">
-          <button type="button" id="btnWeakEdit">틀린 단어 표시하기</button>
-        </div>
-        <details>
-          <summary>더 설정하기</summary>
+          <div class="row" style="margin-bottom:12px">
+            <button type="button" id="btnWeakEdit">틀린 단어 표시하기</button>
+          </div>
           <label class="field">반 코드 (머리글 왼쪽 위, 비워도 돼요)
             <input type="text" id="optClass" autocomplete="off">
           </label>
@@ -127,14 +139,7 @@
             <input type="text" id="optSeed" inputmode="numeric" autocomplete="off" placeholder="비우면 매번 새 순서">
           </label>
         </details>
-        <label class="check"><input type="checkbox" id="optKey" checked> 정답지 쪽 포함</label>
-        <div class="row">
-          <button type="button" id="btnMake" class="primary">새 시험지 만들기</button>
-          <button type="button" id="btnSolve" class="primary" disabled>태블릿에서 풀기</button>
-          <button type="button" id="btnPrint">인쇄 / PDF 저장</button>
-        </div>
       </div>
-      <div id="makeInfo" class="card" hidden></div>
       <iframe id="sheet" title="시험지 미리보기"></iframe>
     </div>
   </section>

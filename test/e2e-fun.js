@@ -87,6 +87,12 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   function tab(name) { return ev("document.querySelector('#tabs button[data-tab=" + name + "]').click()"); }
   var stickerN = function (code) { return ev("WT.fun.stickers(" + JSON.stringify(code) + ").length"); };
 
+
+  // 단어 시험지는 「전체 쓰기」가 기본이라, 학원 시험 모양(10문항·100점)을 보는 점검은 종류 버튼으로 바꾼다.
+  async function toRegular() {
+    await ev("document.querySelector('.seg[data-for=wMode] button[data-v=regular]').click()");
+    await sleep(400);
+  }
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Page.addScriptToEvaluateOnNewDocument", { source: FAKE_SPEECH });
@@ -208,7 +214,7 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   // 6) 태블릿 시험: 채점하면 스티커, 만점이면 2개
   await ev("WT.fun._played.length=0");
   var bBefore = await stickerN("B");
-  await clickCard(wTitle, "시험지 만들기");
+  await clickCard(wTitle, "시험지 만들기"); await toRegular();
   await sleep(500);
   check(!(await ev("document.getElementById('sheet').srcdoc.indexOf('data-theme')>=0")) && !/Jua/.test(await ev("document.getElementById('sheet').srcdoc")), "인쇄 시험지에는 꾸미기(테마, Jua 글꼴)가 들어가지 않음");
   await ev("document.getElementById('btnSolve').click()");

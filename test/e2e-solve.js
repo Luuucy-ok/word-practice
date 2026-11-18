@@ -76,6 +76,12 @@ var C = load(/^A_chunk.*L07-08/);
       "});return q.items.length})(" + JSON.stringify(opt || {}) + ")");
   }
 
+
+  // 단어 시험지는 「전체 쓰기」가 기본이라, 학원 시험 모양(10문항·100점)을 보는 점검은 종류 버튼으로 바꾼다.
+  async function toRegular() {
+    await ev("document.querySelector('.seg[data-for=wMode] button[data-v=regular]').click()");
+    await sleep(400);
+  }
   await send("Page.enable");
   await send("Runtime.enable");
   await open();
@@ -85,7 +91,7 @@ var C = load(/^A_chunk.*L07-08/);
   var wTitle = "단어 Lesson " + W.lesson;
 
   // 1) 시험지 만들기 → 태블릿에서 풀기
-  await clickCard(wTitle, "시험지 만들기");
+  await clickCard(wTitle, "시험지 만들기"); await toRegular();
   await sleep(500);
   check(!(await ev("document.getElementById('btnSolve').disabled")), "시험지를 만들면 「태블릿에서 풀기」 버튼이 켜짐");
   await ev("document.getElementById('btnSolve').click()");
@@ -103,7 +109,7 @@ var C = load(/^A_chunk.*L07-08/);
   await ev("document.getElementById('btnSolveClose').click()");
   check(await H("#solve"), "닫으면 푸는 화면이 닫힘");
   await open(); // 새로 고침해도 남는지
-  await clickCard(wTitle, "시험지 만들기");
+  await clickCard(wTitle, "시험지 만들기"); await toRegular();
   await sleep(400);
   // 새 번호로 만들면 다른 시험이므로 이어 풀지 않는다
   await ev("document.getElementById('btnSolve').click()");
@@ -116,7 +122,7 @@ var C = load(/^A_chunk.*L07-08/);
   await ev("(function(){var inp=document.querySelector('#solveBody .qcard[data-i=\"1\"] input.ans');inp.value='keep';inp.dispatchEvent(new Event('input',{bubbles:true}));})()");
   await ev("document.getElementById('btnSolveClose').click()");
   await open();
-  await clickCard(wTitle, "시험지 만들기");
+  await clickCard(wTitle, "시험지 만들기"); await toRegular();
   await sleep(300);
   await ev("(function(){var inp=document.getElementById('optSeed');inp.value='" + seed + "';inp.dispatchEvent(new Event('change'));})()");
   await sleep(300);
@@ -154,7 +160,7 @@ var C = load(/^A_chunk.*L07-08/);
 
   // 5) 약한 단어만 재시험을 연속 2번 맞히면 약한 목록에서 빠짐
   for (var round = 1; round <= 2; round++) {
-    await clickCard(wTitle, "시험지 만들기");
+    await clickCard(wTitle, "시험지 만들기"); await toRegular();
     await sleep(300);
     await ev("document.getElementById('wWeak').click()");
     await sleep(300);
@@ -175,6 +181,10 @@ var C = load(/^A_chunk.*L07-08/);
   // 6) chunk 풀기: 첫 글자 힌트, 콜로케이션 1칸 대소문자 틀림 → 19점, 이유는 영어 표현
   await clickCard(C.title || "Chunk Quiz", "시험지 만들기");
   await sleep(400);
+  check((await ev("document.getElementById('cMode').value")) === "full", "chunk 시험지는 「범위 전체」가 기본");
+  // 학원 시험 모양(20점) 채점을 보려고 종류 버튼으로 바꾼다
+  await ev("document.querySelector('.seg[data-for=cMode] button[data-v=sample]').click()");
+  await sleep(300);
   await ev("(function(){var s=document.getElementById('cHint');s.value='first';s.dispatchEvent(new Event('change'));})()");
   await sleep(300);
   await ev("document.getElementById('btnSolve').click()");

@@ -239,6 +239,33 @@ html[data-theme] button.chip{box-shadow:none;border-radius:999px;background:var(
 .topline .stickers .srecent{font-size:18px}
 .topline .srecent.empty,.topline .acboard .srecent{font-size:12px}
 
+/* 시험지 탭 위쪽(짧게): 제목, 버튼 한 줄, 종류 고르기, 더 설정 */
+.makecard{padding:12px 14px}
+.makecard h2#makeTitle{font-size:18px;margin:0 0 10px}
+.mkacts{gap:8px;margin-bottom:10px}
+.mkacts button{min-height:44px;font-size:15px}
+.mkacts #btnSolve{padding:0 18px}
+.mkrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}
+.seg button{min-height:40px;border:0;border-radius:0;padding:0 14px;font-size:14px;background:transparent;color:var(--sub);box-shadow:none}
+.seg button + button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--brand);color:var(--brand-ink)}
+html[data-theme] .seg button{border:0;border-radius:0;box-shadow:none;background:transparent;color:var(--sub);transform:none}
+html[data-theme] .seg button + button{border-left:1px solid var(--line)}
+html[data-theme] .seg button.on{background:var(--brand);color:var(--brand-ink)}
+.chipcheck{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);font-size:14px;cursor:pointer}
+.chipcheck input{width:18px;height:18px;margin:0}
+.chipcheck:has(input:checked){border-color:var(--brand);color:var(--brand);font-weight:700}
+.chipcheck:has(input:disabled){opacity:.55;cursor:default}
+.mkinfo{margin-top:8px}
+.mkinfo .msg{margin-top:6px}
+.mkline{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:13px;color:var(--sub)}
+.parentbox.inline{border-top:0;padding-top:0}
+.parentbox.inline > summary{min-height:28px}
+.mkmore{margin:8px 0 0}
+.mkmore > summary{font-size:14px;min-height:36px}
+.mkmore[open]{padding-top:4px}
+
 /* 학원 시험 점수 */
 .acform{display:flex;flex-wrap:wrap;gap:12px 20px}
 .acform .field{margin:0}
