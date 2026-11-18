@@ -137,39 +137,77 @@
     items.sort(function (a, b) {
       return (a.data.owner + a.kind + String(a.data.lesson || a.data.title)).localeCompare(b.data.owner + b.kind + String(b.data.lesson || b.data.title), "ko", { numeric: true });
     });
-    items.forEach(function (it) {
-      var d = it.data;
-      var verified = !!d.verified;
-      var title = it.kind === "word"
-        ? "단어 Lesson " + d.lesson + (d.title ? " " + d.title : "")
-        : (d.title || "Chunk Quiz");
-      var meta = it.kind === "word"
-        ? "단어 " + d.words.length + "개 · 문장 출처: " + sourcesText(d.sentence_sources) + " · 해석 필수: " + (d.require_sentence_ko ? "예" : "아니오")
-        : "Key Vocabulary " + (d.vocab || []).length + "개 · chunk 문장 " + (d.chunks || []).length + "개 · Fill in 첫 글자 힌트: " + (d.hint === "first" ? "있음" : "없음");
-      var weakN = WT.store.weakCount(it);
-      box.appendChild(el("div", { "class": "card lesson" }, [
-        el("div", { "class": "head" }, [
-          el("span", { text: ownerLabel(d.owner) }),
-          el("span", { "class": "badge kind", text: it.kind === "word" ? "단어" : "chunk" }),
-          el("span", { text: title }),
-          el("span", { "class": "badge " + (verified ? "ok" : "warn"), text: verified ? "교재 대조 완료" : "교재 대조 전" })
-        ].concat(it.synced ? [el("span", { "class": "badge kind", text: "부모님이 올림" })] : [])
-          .concat(weakN ? [el("span", { "class": "badge warn", text: "틀린 항목 " + weakN + "개" })] : [])
-          .concat(WT.store.fixesFor(it.id).length ? [el("span", { "class": "badge kind", text: "고칠 곳 " + WT.store.fixesFor(it.id).length + "개" })] : [])),
-        el("div", { "class": "meta", text: meta }),
-        recentLine(it),
-        el("div", { "class": "row" }, [
-          el("button", { type: "button", "class": "primary", text: "시험지 만들기", onclick: function () { openMaker(it.id); } }),
-          el("button", { type: "button", "class": "primary", text: "외우기", onclick: function () { WT.study.open(it, { who: ownerLabel(it.data.owner), owner: it.data.owner, onClose: function () { renderLessons(); updateWeakControls(); } }); } }),
-          el("button", { type: "button", text: "틀린 단어 표시", onclick: function () { openWeak(it.id); } }),
-          el("button", { type: "button", text: "확인 표", onclick: function () { openCheck(it.id); } })
-        ].concat(it.synced ? [] : [
-          el("button", { type: "button", "class": "danger", text: "삭제", onclick: function () {
-            if (window.confirm("이 단원을 이 기기에서 지울까요?")) { WT.store.remove(it.id); renderLessons(); }
-          } })
-        ]))
+    // 「시험 끝」으로 표시한 단원은 맨 아래의 접힌 묶음으로 보낸다(최근에 끝낸 것부터).
+    var todo = items.filter(function (it) { return !WT.store.doneAt(it.id); });
+    var done = items.filter(function (it) { return !!WT.store.doneAt(it.id); })
+      .sort(function (a, b) { return WT.store.doneAt(b.id).localeCompare(WT.store.doneAt(a.id)); });
+    if (state.doneNotice) {
+      var nid = state.doneNotice;
+      state.doneNotice = null;
+      var nit = items.filter(function (x) { return x.id === nid; })[0];
+      if (nit && WT.store.doneAt(nid)) box.appendChild(el("div", { "class": "msg ok donenote", id: "doneNotice" }, [
+        document.createTextNode("「" + lessonTitle(nit) + "」을(를) 시험 끝난 단원으로 옮겼어요. 맨 아래에서 볼 수 있어요. "),
+        el("button", { type: "button", id: "btnUndoDone", text: "되돌리기", onclick: function () { WT.store.setDone(nid, false); renderLessons(); } })
       ]));
-    });
+    }
+    if (!todo.length) box.appendChild(el("div", { "class": "card", text: "지금 공부할 단원이 없어요. 시험 끝난 단원은 아래에 있어요." }));
+    todo.forEach(function (it) { box.appendChild(lessonCard(it)); });
+    if (done.length) {
+      var grp = el("details", { "class": "donegroup", id: "doneGroup" }, [
+        el("summary", { text: "✅ 시험 끝난 단원 " + done.length + "개" })
+      ]);
+      if (state.doneOpen) grp.open = true;
+      grp.addEventListener("toggle", function () { state.doneOpen = grp.open; });
+      done.forEach(function (it) { grp.appendChild(lessonCard(it)); });
+      box.appendChild(grp);
+    }
+  }
+
+  function lessonTitle(it) {
+    var d = it.data;
+    return it.kind === "word" ? "단어 Lesson " + d.lesson + (d.title ? " " + d.title : "") : (d.title || "Chunk Quiz");
+  }
+
+  function lessonCard(it) {
+    var doneAt = WT.store.doneAt(it.id);
+    var d = it.data;
+    var verified = !!d.verified;
+    var title = lessonTitle(it);
+    var meta = it.kind === "word"
+      ? "단어 " + d.words.length + "개 · 문장 출처: " + sourcesText(d.sentence_sources) + " · 해석 필수: " + (d.require_sentence_ko ? "예" : "아니오")
+      : "Key Vocabulary " + (d.vocab || []).length + "개 · chunk 문장 " + (d.chunks || []).length + "개 · Fill in 첫 글자 힌트: " + (d.hint === "first" ? "있음" : "없음");
+    var weakN = WT.store.weakCount(it);
+    return el("div", { "class": "card lesson" + (doneAt ? " done" : ""), "data-id": it.id }, [
+      el("div", { "class": "head" }, [
+        doneAt ? el("span", { "class": "badge ok", text: "✅ 시험 끝 " + fmtDay(doneAt) }) : null,
+        el("span", { text: ownerLabel(d.owner) }),
+        el("span", { "class": "badge kind", text: it.kind === "word" ? "단어" : "chunk" }),
+        el("span", { text: title }),
+        el("span", { "class": "badge " + (verified ? "ok" : "warn"), text: verified ? "교재 대조 완료" : "교재 대조 전" })
+      ].concat(it.synced ? [el("span", { "class": "badge kind", text: "부모님이 올림" })] : [])
+        .concat(weakN ? [el("span", { "class": "badge warn", text: "틀린 항목 " + weakN + "개" })] : [])
+        .concat(WT.store.fixesFor(it.id).length ? [el("span", { "class": "badge kind", text: "고칠 곳 " + WT.store.fixesFor(it.id).length + "개" })] : [])),
+      el("div", { "class": "meta", text: meta }),
+      recentLine(it),
+      el("div", { "class": "row" }, [
+        el("button", { type: "button", "class": "primary", text: "시험지 만들기", onclick: function () { openMaker(it.id); } }),
+        el("button", { type: "button", "class": "primary", text: "외우기", onclick: function () { WT.study.open(it, { who: ownerLabel(it.data.owner), owner: it.data.owner, onClose: function () { renderLessons(); updateWeakControls(); } }); } }),
+        el("button", { type: "button", text: "틀린 단어 표시", onclick: function () { openWeak(it.id); } }),
+        el("button", { type: "button", text: "확인 표", onclick: function () { openCheck(it.id); } }),
+        doneAt
+          ? el("button", { type: "button", "class": "donebtn", text: "↩ 다시 위로", onclick: function () { WT.store.setDone(it.id, false); renderLessons(); } })
+          : el("button", { type: "button", "class": "donebtn", text: "✅ 시험 끝", onclick: function () {
+            WT.store.setDone(it.id, true);
+            state.doneNotice = it.id;
+            renderLessons();
+            window.scrollTo(0, 0);
+          } })
+      ].concat(it.synced ? [] : [
+        el("button", { type: "button", "class": "danger", text: "삭제", onclick: function () {
+          if (window.confirm("이 단원을 이 기기에서 지울까요?")) { WT.store.remove(it.id); renderLessons(); }
+        } })
+      ]))
+    ]);
   }
 
   // 단원 카드에 최근 화면 시험 점수(최대 3개)를 보여 준다.

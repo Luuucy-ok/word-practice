@@ -139,6 +139,15 @@
   function settings() { return Object.assign({ nameA: "", nameB: "" }, parse(read(KEY_SETTINGS), {})); }
   function saveSettings(s) { write(KEY_SETTINGS, JSON.stringify(s)); }
 
+  // 학원 시험을 본 단원(「시험 끝」 표시): settings.done = { 단원 id: 표시한 시각 }. 단원 id 는 다시 받아도 같아서 표시가 남는다.
+  function doneAt(id) { var d = settings().done; return isObj(d) && typeof d[id] === "string" ? d[id] : null; }
+  function setDone(id, on) {
+    var s = settings();
+    s.done = Object.assign({}, isObj(s.done) ? s.done : {});
+    if (on) s.done[id] = new Date().toISOString(); else delete s.done[id];
+    saveSettings(s);
+  }
+
   // ---------------------------------------------------------------- 틀린 단어(약한 단어) 표시
   function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
   function isObj(v) { return v && typeof v === "object" && !Array.isArray(v); }
@@ -341,6 +350,7 @@
   // 백업의 설정을 합친다. 스티커는 아이마다 합쳐서(같은 시각·같은 스티커는 하나로) 지금 기기에서 받은 것이 지워지지 않게 한다.
   function mergeSettings(now, from) {
     var out = Object.assign({}, now, from);
+    if (isObj(from.done) || isObj(now.done)) out.done = Object.assign({}, isObj(from.done) ? from.done : {}, isObj(now.done) ? now.done : {}); // 시험 끝 표시는 합친다
     if (isObj(from.stickers) || isObj(now.stickers)) {
       var a = isObj(now.stickers) ? now.stickers : {}, b = isObj(from.stickers) ? from.stickers : {};
       out.stickers = {};
@@ -411,7 +421,7 @@
   }
 
   WT.store = {
-    list: list, remove: remove, removeAll: removeAll, settings: settings, saveSettings: saveSettings, mergeSettings: mergeSettings,
+    list: list, remove: remove, removeAll: removeAll, settings: settings, saveSettings: saveSettings, mergeSettings: mergeSettings, doneAt: doneAt, setDone: setDone,
     importText: importText, exportAll: exportAll, isPersistent: function () { return persistent; },
     weakItems: weakItems, isWeak: isWeak, setWeak: setWeak, clearWeak: clearWeak, weakCount: weakCount, withWeak: withWeak,
     applyGrading: applyGrading, addResult: addResult, resultsFor: resultsFor, CLEAR_AFTER: CLEAR_AFTER,

@@ -230,7 +230,33 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   await ev("WT.store.importText(" + JSON.stringify(backup) + ",'옛 백업')");
   check((await stickerN("A")) === nA, "같은 백업을 두 번 가져와도 스티커가 늘지 않음");
 
-  // 10) 기본으로 되돌리기
+  // 10) 시험 끝난 단원: 직접 표시하면 맨 아래 접힌 묶음으로, 되돌리기
+  await tab("lessons");
+  // 접힌 묶음 안은 innerText 가 비고, 카드 머리는 줄이 나뉘므로 textContent 로 본다.
+  var topTitles = function () { return ev("Array.from(document.querySelectorAll('#lessonList > .card.lesson .head')).map(function(c){return c.textContent}).join(' | ')"); };
+  var inDone = function (t) { return ev("Array.from(document.querySelectorAll('#doneGroup .card.lesson')).some(function(c){return c.textContent.indexOf(" + JSON.stringify(t) + ")>=0})"); };
+  check(!(await ev("!!document.getElementById('doneGroup')")), "처음에는 「시험 끝난 단원」 묶음이 없음");
+  await clickCard(wTitle, "✅ 시험 끝");
+  check((await inDone(wTitle)) && (await topTitles()).indexOf(wTitle) < 0, "「시험 끝」을 누르면 그 단원이 위 목록에서 빠지고 아래 묶음으로 감");
+  check(!(await ev("document.getElementById('doneGroup').open")) && /시험 끝난 단원 1개/.test(await T("#doneGroup > summary")), "아래 묶음은 접혀 있고 「시험 끝난 단원 1개」로 보임");
+  check((await T("#doneNotice")).indexOf(wTitle) >= 0 && /맨 아래/.test(await T("#doneNotice")), "옮겼다는 안내와 「되돌리기」가 위에 나옴");
+  await shot("f11_시험끝_접힘");
+  await click("#btnUndoDone");
+  check(!(await inDone(wTitle)) && (await topTitles()).indexOf(wTitle) >= 0 && !(await ev("!!document.getElementById('doneGroup')")), "「되돌리기」를 누르면 다시 위로 올라옴");
+  await clickCard(wTitle, "✅ 시험 끝");
+  await open();
+  check((await inDone(wTitle)) && !(await ev("!!document.getElementById('doneNotice')")), "새로 고침해도 시험 끝 표시가 남고, 안내는 한 번만 나옴");
+  await ev("document.querySelector('#doneGroup > summary').click()");
+  check((await ev("document.getElementById('doneGroup').open")) && /✅ 시험 끝 \d+\/\d+/.test(await ev("document.querySelector('#doneGroup .card.lesson').innerText")), "묶음을 누르면 펼쳐지고, 카드에 「✅ 시험 끝 날짜」 표시");
+  await shot("f12_시험끝_펼침");
+  check(JSON.parse(await ev("WT.store.exportAll()")).settings.done !== undefined, "시험 끝 표시가 백업에 들어감");
+  await clickCard(cTitle, "✅ 시험 끝");
+  check(/지금 공부할 단원이 없어요/.test(await T("#lessonList")) && (await ev("document.getElementById('doneGroup').open")), "모두 끝내면 「지금 공부할 단원이 없어요」, 펼친 묶음은 펼친 채로 남음");
+  await clickCard(wTitle, "↩ 다시 위로");
+  check((await topTitles()).indexOf(wTitle) >= 0 && /시험 끝난 단원 1개/.test(await T("#doneGroup > summary")), "펼친 묶음의 「다시 위로」로도 올릴 수 있음");
+  await clickCard(cTitle, "↩ 다시 위로");
+
+  // 11) 기본으로 되돌리기
   await tab("settings");
   await pick("_", "basic");
   check((await theme()) === null, "「기본」을 고르면 원래 모양으로 돌아감");

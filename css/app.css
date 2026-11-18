@@ -151,6 +151,16 @@ button.tile{min-width:52px;min-height:52px;padding:4px 12px;font-size:24px;font-
 button.tile.placed:disabled{opacity:1;cursor:default}
 .flash.wrong .tline button.tile{border-color:var(--sub);color:var(--sub)}
 .tpool{justify-content:center;gap:10px}
+/* 시험 끝난 단원 */
+.donegroup{margin:22px 0 14px;border-top:2px dashed var(--line);padding-top:12px}
+.donegroup > summary{font-size:17px;font-weight:700;color:var(--sub);padding:6px 4px;margin-bottom:8px}
+.donegroup[open] > summary{color:var(--ink)}
+.lesson.done{background:var(--bg);opacity:.78}
+.lesson.done .head{color:var(--sub)}
+button.donebtn{border-color:var(--ok);color:var(--ok)}
+.donenote{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 14px}
+.donenote button{min-height:36px;padding:0 12px}
+
 /* ===================================================== 꾸미기(공통 부품) */
 @font-face{font-family:"Jua";src:url("../fonts/jua.woff2") format("woff2");font-display:swap}
 @font-face{font-family:"Nunito";src:url("../fonts/nunito-800.woff2") format("woff2");font-weight:800;font-display:swap}
@@ -194,6 +204,7 @@ html[data-theme] button,html[data-theme] .btn{border-radius:14px}
 html[data-theme] .lesson{position:relative}
 html[data-theme] .score b,html[data-theme] .fres{font-size:28px}
 html[data-theme] #study .score b{color:var(--brand)}
+html[data-theme] button.donebtn{color:var(--ok)}
 html[data-theme] button.act{border-radius:22px}
 
 /* A 파스텔 다이어리 */
