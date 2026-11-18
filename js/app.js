@@ -60,7 +60,67 @@
     return WT.store.list().filter(function (x) { return x.id === id; })[0];
   }
 
+  // ---------------------------------------------------------------- 꾸미기와 스티커
+  // 설정의 「꾸미기」: 연결된 아이마다(연결하지 않은 기기는 「이 기기」 하나) 테마를 고른다.
+  function renderThemeCard() {
+    var box = $("themeRows");
+    if (!box) return;
+    clear(box);
+    var conn = WT.store.getConnection();
+    var codes = conn ? conn.kids : ["_"];
+    codes.forEach(function (code) {
+      var now = WT.fun.themeOf(code);
+      box.appendChild(el("div", { "class": "themerow" }, [
+        el("div", { "class": "tname", text: code === "_" ? "이 기기" : childLabel(code) }),
+        el("div", { "class": "row" }, WT.fun.ORDER.map(function (name) {
+          var t = WT.fun.THEMES[name];
+          return el("button", { type: "button", "class": "opt themeopt" + (now === name ? " on" : ""), "data-pick": name, "data-code": code, onclick: function () {
+            WT.fun.setTheme(code, name);
+            WT.fun.apply();
+            WT.fun.sound("tap");
+            renderThemeCard();
+            renderStickers();
+          } }, [el("span", { "class": "sw sw-" + name }), (t.icon ? t.icon + " " : "") + t.label]);
+        }))
+      ]));
+    });
+    $("soundOn").checked = WT.fun.soundOn();
+  }
+
+  // 단원 화면 위의 스티커 판. 연결된 기기는 지금 보는 아이 것만, 아니면 스티커가 있는 아이마다 보여 준다.
+  function renderStickers() {
+    var box = $("stickerBox");
+    clear(box);
+    if (!WT.store.list().length) return;
+    var conn = WT.store.getConnection();
+    var codes = conn ? [conn.child] : ["A", "B", "_"].filter(function (c) { return WT.fun.stickers(c).length; });
+    if (!codes.length) codes = ["_"];
+    codes.forEach(function (code) {
+      var list = WT.fun.stickers(code);
+      var who = code === "_" ? "" : childLabel(code) + " ";
+      var recent = list.slice(-6).reverse().map(function (x) { return x.s; }).join("");
+      var card = el("details", { "class": "card stickers", "data-code": code }, [
+        el("summary", {}, [
+          el("span", { "class": "stitle", text: "🏅 " + who + "스티커 " + list.length + "개" }),
+          el("span", { "class": "srecent" + (list.length ? "" : " empty"), text: list.length ? recent : "외우기나 시험을 끝내면 받아요" })
+        ])
+      ]);
+      if (list.length) {
+        var board = el("div", { "class": "sboard" });
+        list.slice().reverse().slice(0, 200).forEach(function (x) {
+          board.appendChild(el("span", { title: fmtDay(x.at) + (x.from ? " · " + x.from : ""), text: x.s }));
+        });
+        card.appendChild(board);
+        if (list.length > 200) card.appendChild(el("div", { "class": "hint", text: "최근 200개만 보여 줘요." }));
+      } else {
+        card.appendChild(el("p", { "class": "hint", style: "margin-top:8px", text: "외우기를 끝까지 하거나 태블릿에서 시험을 채점하면 스티커를 하나씩 받아요. 만점이면 하나 더 받아요." }));
+      }
+      box.appendChild(card);
+    });
+  }
+
   function renderLessons() {
+    renderStickers();
     var box = $("lessonList");
     clear(box);
     WT.store.pruneFixes(); // 원본이 고쳐져 새로 받은 단원에 반영된 고칠 곳은 목록에서 뺀다
@@ -100,7 +160,7 @@
         recentLine(it),
         el("div", { "class": "row" }, [
           el("button", { type: "button", "class": "primary", text: "시험지 만들기", onclick: function () { openMaker(it.id); } }),
-          el("button", { type: "button", "class": "primary", text: "외우기", onclick: function () { WT.study.open(it, { who: ownerLabel(it.data.owner), onClose: function () { renderLessons(); updateWeakControls(); } }); } }),
+          el("button", { type: "button", "class": "primary", text: "외우기", onclick: function () { WT.study.open(it, { who: ownerLabel(it.data.owner), owner: it.data.owner, onClose: function () { renderLessons(); updateWeakControls(); } }); } }),
           el("button", { type: "button", text: "틀린 단어 표시", onclick: function () { openWeak(it.id); } }),
           el("button", { type: "button", text: "확인 표", onclick: function () { openCheck(it.id); } })
         ].concat(it.synced ? [] : [
@@ -173,6 +233,8 @@
 
   function renderSync() {
     var conn = WT.store.getConnection();
+    WT.fun.apply(); // 지금 보는 아이의 꾸미기
+    renderThemeCard();
     renderChildBar();
     renderChildActions();
     $("syncBox").hidden = !conn;
@@ -768,6 +830,7 @@
     WT.solve.open(quiz, {
       draftKey: key,
       who: ownerLabel(it.data.owner),
+      owner: it.data.owner,
       onGraded: function (g, q) {
         // 틀린 것은 약한 목록에 넣고, 약한 항목을 연속으로 맞히면 빼고, 점수를 기록한다.
         var summary = WT.store.applyGrading(L.lessonId, g.byKey);
@@ -853,6 +916,7 @@
     WT.solve.bind();
     WT.study.bind();
     $("kbdTest").addEventListener("input", checkKeyboard);
+    $("soundOn").addEventListener("change", function () { WT.fun.setSound($("soundOn").checked); WT.fun.sound("ok"); });
     $("btnVoiceTest").addEventListener("click", function () {
       var ok = WT.speech.say("Hello! Let's practice spelling.", false);
       var st = WT.speech.status();
@@ -900,6 +964,7 @@
         var r = WT.store.importText(t, f.name);
         var ok = summarize(r);
         msg($("backupMsg"), r.errors.length ? (ok ? "warn" : "err") : "ok", (ok ? ok + "\n" : "") + r.errors.join("\n"));
+        renderSync(); // 백업의 꾸미기(테마)도 반영
         renderLessons();
         initSettings();
       });

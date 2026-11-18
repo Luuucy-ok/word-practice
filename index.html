@@ -69,6 +69,7 @@
       <button type="button" id="btnImport" class="primary">가져오기</button>
       <div id="importMsg" role="status" aria-live="polite"></div>
     </details>
+    <div id="stickerBox"></div>
     <div id="lessonList"></div>
   </section>
 
@@ -132,6 +133,12 @@
 
   <!-- 설정 -->
   <section id="tab-settings" hidden>
+    <div class="card" id="themeCard">
+      <h2>꾸미기</h2>
+      <p class="hint">좋아하는 모양을 골라요. 태블릿 화면만 바뀌고, 인쇄하는 시험지는 그대로예요.</p>
+      <div id="themeRows"></div>
+      <label class="check"><input type="checkbox" id="soundOn"> 맞히고 틀릴 때 효과음 내기</label>
+    </div>
     <div class="card">
       <h2>아이 이름 표시</h2>
       <p class="hint">단원 데이터에는 「아이 A·B」만 적혀 있어요. 이 기기 화면에서만 이름을 함께 보여 줘요. 시험지에는 들어가지 않아요.</p>
@@ -215,10 +222,10 @@
   </div>
 </div>
 
-<!-- 외우기(카드 넘기기, 듣고 쓰기) -->
+<!-- 외우기(카드 넘기기, 듣고 쓰기, 첫 글자 힌트 쓰기, 글자·블록 맞추기) -->
 <div id="study" class="solve" hidden>
   <div class="solvebar">
-    <div class="st"><b id="studyTitle"></b><span id="studySub" class="hint"></span></div>
+    <div class="st"><b id="studyTitle"></b><span id="studySub" class="hint"></span><div id="studyProg" class="prog" hidden></div></div>
     <button type="button" id="btnStudyClose">닫기</button>
   </div>
   <div class="solvewrap" id="studyBody"></div>
@@ -228,6 +235,7 @@
 <script src="js/word.js"></script>
 <script src="js/chunk.js"></script>
 <script src="js/store.js"></script>
+<script src="js/fun.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/quiz.js"></script>
 <script src="js/solve.js"></script>

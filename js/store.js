@@ -338,6 +338,28 @@
     return { id: id, updated: updated };
   }
 
+  // 백업의 설정을 합친다. 스티커는 아이마다 합쳐서(같은 시각·같은 스티커는 하나로) 지금 기기에서 받은 것이 지워지지 않게 한다.
+  function mergeSettings(now, from) {
+    var out = Object.assign({}, now, from);
+    if (isObj(from.stickers) || isObj(now.stickers)) {
+      var a = isObj(now.stickers) ? now.stickers : {}, b = isObj(from.stickers) ? from.stickers : {};
+      out.stickers = {};
+      Object.keys(Object.assign({}, a, b)).forEach(function (code) {
+        var seen = {}, list = [];
+        [].concat(Array.isArray(a[code]) ? a[code] : [], Array.isArray(b[code]) ? b[code] : []).forEach(function (x) {
+          if (!isObj(x) || typeof x.s !== "string") return;
+          var k = x.at + "|" + x.s;
+          if (seen[k]) return;
+          seen[k] = 1;
+          list.push(x);
+        });
+        list.sort(function (x, y) { return String(x.at).localeCompare(String(y.at)); });
+        out.stickers[code] = list;
+      });
+    }
+    return out;
+  }
+
   // 붙여 넣은 글이나 파일 내용을 가져온다. 단원 하나, 단원 목록, 백업 파일 모두 받는다.
   function importText(text, label) {
     var res = { added: [], updated: [], errors: [], settingsRestored: false, weakRestored: 0, resultsRestored: 0, fixesRestored: 0 };
@@ -348,7 +370,7 @@
     if (Array.isArray(obj)) items = obj;
     else if (obj && Array.isArray(obj.lessons)) {
       items = obj.lessons;
-      if (obj.settings) { saveSettings(Object.assign(settings(), obj.settings)); res.settingsRestored = true; }
+      if (obj.settings) { saveSettings(mergeSettings(settings(), obj.settings)); res.settingsRestored = true; }
       if (isObj(obj.weak)) res.weakRestored = mergeWeak(obj.weak);
       if (Array.isArray(obj.results)) res.resultsRestored = mergeResults(obj.results);
       if (Array.isArray(obj.fixes)) res.fixesRestored = mergeFixes(obj.fixes);
@@ -389,7 +411,7 @@
   }
 
   WT.store = {
-    list: list, remove: remove, removeAll: removeAll, settings: settings, saveSettings: saveSettings,
+    list: list, remove: remove, removeAll: removeAll, settings: settings, saveSettings: saveSettings, mergeSettings: mergeSettings,
     importText: importText, exportAll: exportAll, isPersistent: function () { return persistent; },
     weakItems: weakItems, isWeak: isWeak, setWeak: setWeak, clearWeak: clearWeak, weakCount: weakCount, withWeak: withWeak,
     applyGrading: applyGrading, addResult: addResult, resultsFor: resultsFor, CLEAR_AFTER: CLEAR_AFTER,

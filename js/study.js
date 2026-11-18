@@ -254,6 +254,7 @@
     var body = $("studyBody");
     clear(body);
     setSub(cur.all.length + "개 항목");
+    hideProgress();
     var p = cur.pref;
     var groups = groupsOf(cur.all);
     var box = el("div", { "class": "card" });
@@ -337,7 +338,9 @@
     }
     var fit = list.filter(function (x) { return fits(x, p.act); });
     if (!fit.length) {
-      renderSetup({ kind: "warn", text: "고른 항목에는 「" + actOf(p.act).short + "」로 연습할 것이 없어요. 항목이나 방법을 바꿔 주세요." });
+      renderSetup({ kind: "warn", text: p.act === "letters" && cur.lesson.kind === "chunk"
+        ? "「글자 순서 맞추기」는 Key Vocabulary 단어로 해요. 항목에서 「Key Vocabulary」를 골라 주세요."
+        : "고른 항목에는 「" + actOf(p.act).short + "」로 연습할 것이 없어요. 항목이나 방법을 바꿔 주세요." });
       return;
     }
     writePref(p);
@@ -357,6 +360,14 @@
   function progress() {
     var d = cur.deck;
     setSub(actOf(cur.act).short + " · 끝낸 것 " + d.doneN + " / " + d.total + " · 남은 것 " + d.queue.length);
+    if (WT.fun) WT.fun.progress($("studyProg"), d.doneN, d.total);
+  }
+  function hideProgress() { var p = $("studyProg"); if (p) p.hidden = true; }
+  // 맞힘·틀림 반응(효과음, 맞히면 작은 색종이)
+  function cheer(ok) {
+    if (!WT.fun) return;
+    WT.fun.sound(ok ? "ok" : "no");
+    if (ok) WT.fun.confetti("small");
   }
 
   // ---------------------------------------------------------------- 2) 카드 넘기기
@@ -400,7 +411,7 @@
     var row = $("studyBtns");
     clear(row);
     row.appendChild(el("button", { type: "button", "class": "dunno", id: "btnDunno", text: "몰라요 (다시 볼래요)", onclick: function () { cur.deck.fail(); renderCard(); } }));
-    row.appendChild(el("button", { type: "button", "class": "primary", id: "btnKnow", text: "알아요", onclick: function () { cur.deck.pass(); renderCard(); } }));
+    row.appendChild(el("button", { type: "button", "class": "primary", id: "btnKnow", text: "알아요", onclick: function () { if (WT.fun) WT.fun.sound("tap"); cur.deck.pass(); renderCard(); } }));
   }
 
   // ---------------------------------------------------------------- 3) 듣고 쓰기
@@ -460,6 +471,7 @@
     if (cur.act === "hint") speech.say(item.say, false); // 힌트 쓰기는 확인한 뒤에 소리를 들려준다
     var fix = $("studyFix");
     var card = $("studyCard");
+    cheer(r.ok);
     if (r.ok) {
       card.classList.add("right");
       fix.appendChild(el("div", { "class": "fres" }, [el("span", { "class": "mark o", text: "○" }), doc.createTextNode(" 맞았어요!")]));
@@ -558,6 +570,7 @@
     cur.checked = { ok: ok };
     drawTiles();
     speech.say(item.say, false);
+    cheer(ok);
     var card = $("studyCard");
     var fix = $("studyFix");
     if (ok) {
@@ -589,6 +602,18 @@
     clear(body);
     var box = el("div", { "class": "card" });
     box.appendChild(el("div", { "class": "score" }, [el("b", { text: "다 했어요! " }), doc.createTextNode(d.total + "개 중 한 번에 " + (d.total - d.missed.length) + "개")]));
+    if (WT.fun) {
+      // 끝까지 하면 스티커를 하나 받는다.
+      var got = WT.fun.award(cur.lesson.data.owner, "외우기 · " + $("studyTitle").textContent.replace(/^외우기 · /, ""));
+      box.appendChild(el("div", { "class": "sgot", id: "studySticker" }, [
+        el("span", { "class": "sbig", text: got.s }),
+        el("span", { text: "스티커를 받았어요! 모두 " + WT.fun.stickers(WT.fun.codeOfOwner(cur.lesson.data.owner) || WT.fun.currentCode()).length + "개" })
+      ]));
+      WT.fun.progress($("studyProg"), d.total, d.total);
+      WT.fun.sound("done");
+      setTimeout(function () { WT.fun.sound("sticker"); }, 450);
+      WT.fun.confetti("big");
+    }
     if (d.missed.length) {
       box.appendChild(el("p", { "class": "hint", style: "margin-top:8px", text: (cur.act === "cards" ? "처음에 몰랐던 것: " : "처음에 틀린 것: ") + d.missed.map(function (x) { return x.word; }).join(", ") }));
     }
@@ -617,6 +642,7 @@
     var d = lesson.data;
     var title = lesson.kind === "word" ? "단어 Lesson " + d.lesson : (d.title || "Chunk Quiz");
     $("studyTitle").textContent = "외우기 · " + (cur.ctx.who ? cur.ctx.who + " · " : "") + title;
+    if (WT.fun) WT.fun.enter(cur.ctx.owner || d.owner);
     renderSetup();
     $("study").hidden = false;
     $("study").scrollTop = 0;
@@ -627,6 +653,8 @@
     try { if (root.speechSynthesis) root.speechSynthesis.cancel(); } catch (e) {}
     $("study").hidden = true;
     doc.body.classList.remove("solving");
+    hideProgress();
+    if (WT.fun) WT.fun.leave();
     var ctx = cur && cur.ctx;
     cur = null;
     if (ctx && ctx.onClose) ctx.onClose();

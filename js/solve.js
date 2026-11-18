@@ -183,6 +183,21 @@
     var top = $("solveTop");
     clear(top);
     var lines = [el("div", { "class": "score" }, [el("b", { text: g.score + " / " + g.total + "점" }), doc.createTextNode(" · 맞힌 문항 " + g.correct + " / " + g.items.length)])];
+    var full = g.total > 0 && g.score === g.total;
+    if (WT.fun) {
+      // 채점하면 스티커 하나, 만점이면 하나 더(틀린 문항만 다시 풀기는 연습이라 스티커 없음)
+      if (!cur.practice) {
+        var got = [WT.fun.award(cur.ctx.owner, "시험 · " + q.title + " " + g.score + "/" + g.total)];
+        if (full) got.push(WT.fun.award(cur.ctx.owner, "만점 · " + q.title));
+        lines.push(el("div", { "class": "sgot", id: "solveSticker" }, [
+          el("span", { "class": "sbig", text: got.map(function (x) { return x.s; }).join("") }),
+          el("span", { text: full ? "만점! 스티커를 2개 받았어요!" : "스티커를 받았어요!" })
+        ]));
+        setTimeout(function () { WT.fun.sound("sticker"); }, 450);
+      }
+      WT.fun.sound(g.score >= g.total * 0.8 ? "done" : "ok");
+      if (g.score >= g.total * 0.8) WT.fun.confetti(full ? "big" : "small");
+    }
     if (cur.practice) {
       lines.push(el("div", { "class": "hint", text: "틀린 문항만 다시 푼 연습이라 점수 기록과 약한 목록에는 넣지 않았어요." }));
     } else if (summary) {
@@ -238,6 +253,7 @@
     top.hidden = false;
     $("btnSolveGrade").hidden = false;
     renderItems();
+    if (WT.fun) WT.fun.enter(cur.ctx.owner);
     $("solve").hidden = false;
     $("solve").scrollTop = 0;
     doc.body.classList.add("solving");
@@ -247,6 +263,7 @@
     if (cur && !cur.graded && !cur.practice && !root.confirm("푸는 중인 답은 이 기기에 저장되어 있어요. 닫을까요?")) return;
     $("solve").hidden = true;
     doc.body.classList.remove("solving");
+    if (WT.fun) WT.fun.leave();
     var ctx = cur && cur.ctx;
     cur = null;
     if (ctx && ctx.onClose) ctx.onClose();

@@ -80,7 +80,15 @@ var MOCK = "(function(){" +
     await send("Page.navigate", { url: "about:blank" });
     await sleep(200);
     await send("Page.navigate", { url: index + (hash || "") });
-    await sleep(1200);
+    // 고정 시간만 기다리면 느린 때 흔들리므로, 앱 화면이 다 그려질 때까지 기다린다(최대 10초).
+    for (var w = 0; w < 50; w++) {
+      await sleep(200);
+      try {
+        var ready = await ev("location.protocol!=='about:'&&document.readyState==='complete'&&!!window.WT&&!!document.getElementById('lessonList')");
+        if (ready) break;
+      } catch (e) {}
+    }
+    await sleep(600);
   }
   var T = function (sel) { return ev("document.querySelector(" + JSON.stringify(sel) + ").innerText"); };
   var H = function (sel) { return ev("document.querySelector(" + JSON.stringify(sel) + ").hidden"); };

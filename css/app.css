@@ -151,5 +151,117 @@ button.tile{min-width:52px;min-height:52px;padding:4px 12px;font-size:24px;font-
 button.tile.placed:disabled{opacity:1;cursor:default}
 .flash.wrong .tline button.tile{border-color:var(--sub);color:var(--sub)}
 .tpool{justify-content:center;gap:10px}
+/* ===================================================== 꾸미기(공통 부품) */
+@font-face{font-family:"Jua";src:url("../fonts/jua.woff2") format("woff2");font-display:swap}
+@font-face{font-family:"Nunito";src:url("../fonts/nunito-800.woff2") format("woff2");font-weight:800;font-display:swap}
+.prog{display:flex;align-items:center;gap:3px;margin-top:4px}
+.pbar{display:block;width:180px;max-width:50vw;height:9px;border-radius:9px;background:var(--line);overflow:hidden}
+.pbar i{display:block;height:100%;background:var(--brand);border-radius:9px;transition:width .3s}
+.pmark{font-size:17px;line-height:1;color:var(--line);transition:color .3s}
+.pmark.on{color:var(--brand)}
+.confetti{position:fixed;inset:0;z-index:60;pointer-events:none;overflow:hidden}
+.confetti i{position:absolute;top:-16px;width:9px;height:13px;border-radius:2px;animation:cfall 1.6s ease-in forwards}
+@keyframes cfall{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(var(--dx,0),105vh) rotate(var(--rot,540deg))}}
+.stickers summary{justify-content:space-between;gap:10px;color:var(--ink)}
+.stickers .srecent{font-size:22px;letter-spacing:2px}
+.stickers .srecent.empty{font-size:13px;letter-spacing:0;color:var(--sub);font-weight:400}
+.sboard{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:6px;margin-top:10px;font-size:30px;text-align:center}
+.sboard span{padding:4px 0;border-radius:10px;background:var(--bg)}
+.sgot{display:flex;align-items:center;gap:12px;margin-top:12px;padding:10px 14px;border-radius:14px;background:var(--bg);font-weight:700}
+.sgot .sbig{font-size:44px;line-height:1;animation:spop .7s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes spop{0%{transform:scale(.2) rotate(-25deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+.themerow{margin:0 0 14px}
+.themerow .tname{font-weight:700;margin-bottom:6px}
+button.themeopt{gap:8px}
+.sw{display:inline-block;width:18px;height:18px;border-radius:50%;border:1px solid rgba(0,0,0,.1)}
+.sw-basic{background:linear-gradient(135deg,#1d4ed8,#93c5fd)}
+.sw-pastel{background:linear-gradient(135deg,#ffb7ce,#a689f0 60%,#a0e2c8)}
+.sw-berry{background:linear-gradient(135deg,#ff5c8a,#ffc2d4)}
+.sw-star{background:linear-gradient(135deg,#7c5cff,#5aa9ff 60%,#ffc93c)}
+@media (prefers-reduced-motion:reduce){.sgot .sbig{animation:none}}
+
+/* ===================================================== 꾸미기 테마(밝은 화면 고정) */
+html[data-theme]{color-scheme:light}
+html[data-theme] .bar h1::after{content:var(--ticon,"")}
+html[data-theme] :where(.bar h1,.card h2,.dlghead h2,button,.btn,.sgroup,.score b,.fres,.lesson .head,.childbar b,.stitle,.tname,.weakgroup,.qno,summary,.solvebar b),html[data-theme] #tabs button{font-family:"Jua","Malgun Gothic",sans-serif;font-weight:400}
+html[data-theme] .card h2{font-size:19px}
+html[data-theme] .lesson .head,html[data-theme] button.act b,html[data-theme] button b{font-weight:400}
+html[data-theme] button.tile,html[data-theme] .opts button.opt,html[data-theme] .fphrase b{font-family:"Nunito","Malgun Gothic",sans-serif;font-weight:800}
+html[data-theme] .card{border-radius:20px}
+html[data-theme] .flash{border-radius:24px}
+html[data-theme] .qcard{border-radius:16px}
+html[data-theme] button,html[data-theme] .btn{border-radius:14px}
+html[data-theme] .lesson{position:relative}
+html[data-theme] .score b,html[data-theme] .fres{font-size:28px}
+html[data-theme] #study .score b{color:var(--brand)}
+html[data-theme] button.act{border-radius:22px}
+
+/* A 파스텔 다이어리 */
+html[data-theme="pastel"]{--bg:#fffaf5;--card:#fff;--ink:#4a3f55;--sub:#7f7390;--line:#eedcea;--brand:#8e6bd8;--brand-ink:#fff;
+  --warn:#c92a2a;--warn-bg:#fff0f3;--ok:#2b8a3e;--ok-bg:#ecfbef;--amber:#9c5a00;--amber-bg:#fff6e6;--ticon:" 🌷"}
+html[data-theme="pastel"] body,html[data-theme="pastel"] .solve{background:#fffaf5 radial-gradient(#f4dccf 1.2px,transparent 1.3px) 0 0/18px 18px}
+html[data-theme="pastel"] .bar,html[data-theme="pastel"] .solvebar{background:#fff;border-bottom:2px dashed #f2cfe0}
+html[data-theme="pastel"] .bar h1{color:#8e6bd8;font-size:21px}
+html[data-theme="pastel"] #tabs button{border-radius:12px 12px 0 0}
+html[data-theme="pastel"] #tabs button.on{background:#f1eaff;color:#7b55d6;border-bottom-color:#a689f0}
+html[data-theme="pastel"] .card{border:2px solid #f3e1ec}
+html[data-theme="pastel"] .lesson::before,html[data-theme="pastel"] .stickers::before{content:"";position:absolute;top:-9px;left:24px;width:72px;height:18px;background:rgba(255,183,206,.65);transform:rotate(-4deg);border-radius:3px}
+html[data-theme="pastel"] .stickers{position:relative}
+html[data-theme="pastel"] .lesson:nth-child(even)::before{background:rgba(160,226,200,.7);transform:rotate(3deg)}
+html[data-theme="pastel"] button,html[data-theme="pastel"] .btn{border:2px solid #e6dcfb;color:#6d4fc4}
+html[data-theme="pastel"] button.primary,html[data-theme="pastel"] button.opt.on{background:#a689f0;border-color:#a689f0;color:#fff}
+html[data-theme="pastel"] button.danger{color:var(--warn);border-color:#f5c2c7}
+html[data-theme="pastel"] .flash{border-color:#e2d6fb}
+html[data-theme="pastel"] button.tile{background:#fff5e9;border:2px solid #ffd7b0;color:#c0703a;box-shadow:0 3px 0 #ffd7b0}
+html[data-theme="pastel"] .tline button.tile{background:#fff;border-color:#a689f0;color:#7b55d6;box-shadow:none}
+html[data-theme="pastel"] .pbar{background:#f1eaff}
+html[data-theme="pastel"] .pbar i{background:linear-gradient(90deg,#ffb7ce,#a689f0)}
+html[data-theme="pastel"] .fko{color:#b07aa0}
+
+/* B 딸기 우유 */
+html[data-theme="berry"]{--bg:#fff3f6;--card:#fff;--ink:#5c2a3d;--sub:#94566e;--line:#ffd0de;--brand:#ff4f86;--brand-ink:#fff;
+  --warn:#c92a2a;--warn-bg:#fff0f0;--ok:#2b8a3e;--ok-bg:#ecfbef;--amber:#9c5a00;--amber-bg:#fff6e6;--ticon:" 🍓"}
+html[data-theme="berry"] body,html[data-theme="berry"] .solve{background:#fff3f6 linear-gradient(180deg,#ffe3ec,#fff3f6 320px) no-repeat}
+html[data-theme="berry"] .bar{background:#ff7aa2;border-bottom:0;padding-bottom:10px}
+html[data-theme="berry"] .bar h1{color:#fff;font-size:21px}
+html[data-theme="berry"] #tabs{gap:6px}
+html[data-theme="berry"] #tabs button{color:#ffe7ee;border-radius:12px;border-bottom:0;min-height:40px}
+html[data-theme="berry"] #tabs button.on{background:#fff;color:#ff4f86}
+html[data-theme="berry"] .solvebar{background:#fff;border-bottom:3px solid #ffd0de}
+html[data-theme="berry"] .card{border:0;box-shadow:0 6px 0 #ffd0de;border-radius:22px}
+html[data-theme="berry"] button,html[data-theme="berry"] .btn{border:0;border-radius:99px;background:#fff0f5;color:#e64980;box-shadow:0 4px 0 #ffc2d4}
+html[data-theme="berry"] button:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 #ffc2d4}
+html[data-theme="berry"] button.primary,html[data-theme="berry"] button.opt.on{background:#ff5c8a;color:#fff;box-shadow:0 4px 0 #d6336c}
+html[data-theme="berry"] button.danger{background:#fff0f0;color:var(--warn);box-shadow:0 4px 0 #ffd6d6}
+html[data-theme="berry"] button.act{border:2px solid transparent}
+html[data-theme="berry"] button.act.on{border-color:#ff5c8a;background:#fff}
+html[data-theme="berry"] .flash{border:2px solid #ffe0ea;box-shadow:0 7px 0 #ffd0de}
+html[data-theme="berry"] .qcard{border:2px solid #ffe0ea}
+html[data-theme="berry"] button.tile{background:#ff8fb1;color:#fff;box-shadow:0 4px 0 #e64980}
+html[data-theme="berry"] .tpool button.tile:nth-child(3n){background:#ffb86b;box-shadow:0 4px 0 #f08c2a}
+html[data-theme="berry"] .tpool button.tile:nth-child(4n){background:#b79cff;box-shadow:0 4px 0 #8a6cf0}
+html[data-theme="berry"] .tline button.tile{background:#fff;color:#ff4f86;box-shadow:0 3px 0 #ffc2d4;border:2px solid #ff8fb1}
+html[data-theme="berry"] .fko{color:#ff4f86}
+
+/* C 별빛 마법 */
+html[data-theme="star"]{--bg:#f3efff;--card:#fff;--ink:#2f2a66;--sub:#5f5b92;--line:#ddd5ff;--brand:#6a4cf0;--brand-ink:#fff;
+  --warn:#c92a2a;--warn-bg:#fff0f3;--ok:#2b8a3e;--ok-bg:#ecfbef;--amber:#9c5a00;--amber-bg:#fff6e6;--ticon:" ✨"}
+html[data-theme="star"] body,html[data-theme="star"] .solve{background:linear-gradient(170deg,#efe8ff 0%,#e3f1ff 55%,#fdf0ff 100%);min-height:100vh}
+html[data-theme="star"] .bar{background:linear-gradient(90deg,#7c5cff,#5aa9ff);border-bottom:0;padding-bottom:10px}
+html[data-theme="star"] .bar h1{color:#fff;font-size:21px}
+html[data-theme="star"] #tabs{gap:6px}
+html[data-theme="star"] #tabs button{color:#e8e1ff;border-radius:12px;border-bottom:0;min-height:40px}
+html[data-theme="star"] #tabs button.on{background:rgba(255,255,255,.95);color:#6a4cf0}
+html[data-theme="star"] .solvebar{background:rgba(255,255,255,.92);border-bottom:2px solid #ddd5ff}
+html[data-theme="star"] main::before{content:"✦  ·  ✧    ·  ✦     ✧  ·   ✦";display:block;text-align:center;color:#c2b3ff;letter-spacing:6px;font-size:14px;margin:-4px 0 8px}
+html[data-theme="star"] .card{background:rgba(255,255,255,.88);border:1.5px solid #fff;box-shadow:0 6px 18px rgba(124,92,255,.14)}
+html[data-theme="star"] button,html[data-theme="star"] .btn{border:1.5px solid #d9d0ff;color:#5a3fe0;background:#fff}
+html[data-theme="star"] button.primary,html[data-theme="star"] button.opt.on{background:linear-gradient(90deg,#7c5cff,#5aa9ff);border-color:transparent;color:#fff}
+html[data-theme="star"] button.danger{color:var(--warn);border-color:#f5c2c7}
+html[data-theme="star"] .flash{background:rgba(255,255,255,.92);border-color:#e4dcff;box-shadow:0 8px 24px rgba(90,169,255,.18)}
+html[data-theme="star"] button.tile{background:linear-gradient(160deg,#fff,#efe9ff);border:1.5px solid #d4c8ff;color:#5a3fe0;box-shadow:0 3px 8px rgba(124,92,255,.2)}
+html[data-theme="star"] .tline button.tile{background:#fff;border-color:#7c5cff}
+html[data-theme="star"] .pmark.on{color:#ffc93c}
+html[data-theme="star"] .fko{color:#6a4cf0}
 [hidden]{display:none !important}
 @media (max-width:520px){ main{padding:12px} .card{padding:14px} }
