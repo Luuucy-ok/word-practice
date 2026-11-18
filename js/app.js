@@ -102,7 +102,7 @@
       var card = el("details", { "class": "card stickers", "data-code": code }, [
         el("summary", {}, [
           el("span", { "class": "stitle", text: "🏅 " + who + "스티커 " + list.length + "개" }),
-          el("span", { "class": "srecent" + (list.length ? "" : " empty"), text: list.length ? recent : "외우기나 시험을 끝내면 받아요" })
+          el("span", { "class": "srecent" + (list.length ? "" : " empty"), text: list.length ? recent : "눌러서 받는 방법 보기" })
         ])
       ]);
       if (list.length) {
@@ -139,6 +139,10 @@
     items.sort(function (a, b) {
       return ((a.kind === "word" ? "0" : "1") + a.data.owner + String(a.data.lesson || a.data.title)).localeCompare((b.kind === "word" ? "0" : "1") + b.data.owner + String(b.data.lesson || b.data.title), "ko", { numeric: true });
     });
+    // 한 아이 단원만 보일 때는 줄마다 같은 아이 이름을 숨긴다(글자는 남겨 찾기·읽기 프로그램용).
+    var ownerSet = {};
+    items.forEach(function (x) { ownerSet[x.data.owner] = 1; });
+    box.classList.toggle("single", Object.keys(ownerSet).length < 2);
     // 「시험 끝」으로 표시한 단원은 맨 아래의 접힌 묶음으로 보낸다(최근에 끝낸 것부터).
     var todo = items.filter(function (it) { return !WT.store.doneAt(it.id); });
     var done = items.filter(function (it) { return !!WT.store.doneAt(it.id); })
@@ -197,6 +201,14 @@
     return m ? { pre: m[1], main: m[2], sub: "" } : { pre: "", main: t, sub: "" };
   }
 
+  // 번호 상자에 넣을 글자: 단어는 Lesson 번호, chunk 는 제목의 숫자들(예: 7·8)
+  function lessonNo(it) {
+    if (it.kind === "word") return String(it.data.lesson);
+    var nums = String(it.data.title || "").match(/\d+/g);
+    return nums ? nums.join("·") : "?";
+  }
+
+  // 단원 한 줄(A안): [번호 상자] 이름·상태 [외우기][시험지 만들기][⋯]. ⋯ 이나 이름을 누르면 나머지 버튼이 펼쳐진다.
   function lessonCard(it) {
     var doneAt = WT.store.doneAt(it.id);
     var d = it.data;
@@ -207,8 +219,19 @@
       : "Key Vocabulary " + (d.vocab || []).length + "개 · chunk 문장 " + (d.chunks || []).length + "개 · Fill in 첫 글자 힌트: " + (d.hint === "first" ? "있음" : "없음");
     var weakN = WT.store.weakCount(it);
     var fixN = WT.store.fixesFor(it.id).length;
-    var study = function () { WT.study.open(it, { who: ownerLabel(it.data.owner), owner: it.data.owner, onClose: function () { renderLessons(); updateWeakControls(); } }); };
-    // 아이가 볼 필요 없는 것(교재 대조, 부모님이 올림, 단원 구성, 확인 표, 삭제)은 「⋯ 부모님용」 안에 접어 둔다.
+    var ac = WT.store.academyFor(it.id);
+    var rs = WT.store.resultsFor(it.id)[0];
+    var open = !!(state.openRows && state.openRows[it.id]);
+    var study = function (scope) { WT.study.open(it, { who: ownerLabel(it.data.owner), owner: it.data.owner, scope: scope, onClose: function () { renderLessons(); updateWeakControls(); } }); };
+    var card, exp;
+    function toggle() {
+      state.openRows = state.openRows || {};
+      open = !open;
+      state.openRows[it.id] = open;
+      exp.hidden = !open;
+      card.classList.toggle("open", open);
+      more.setAttribute("aria-expanded", open ? "true" : "false");
+    }
     var parent = el("details", { "class": "parentbox" }, [
       el("summary", { text: "⋯ 부모님용" + (fixN ? " · 고칠 곳 " + fixN + "개" : "") }),
       el("div", { "class": "pbadges" }, [
@@ -225,33 +248,15 @@
         } })
       ]))
     ]);
-    return el("div", { "class": "card lesson k-" + it.kind + (doneAt ? " done" : ""), "data-id": it.id }, [
-      el("div", { "class": "head" }, [
-        el("span", { "class": "kchip", text: KIND[it.kind].icon + " " + KIND[it.kind].name }),
-        el("span", { "class": "owner", text: ownerLabel(d.owner) }),
-        doneAt ? el("span", { "class": "badge ok", text: "✅ 시험 끝 " + fmtDay(doneAt) }) : null,
-        el("div", { "class": "ltitle" }, [
-          tp.pre ? el("span", { "class": "lpre", text: tp.pre }) : null,
-          tp.pre ? " " : null,
-          el("span", { "class": "lmain", text: tp.main })
-        ]),
-        tp.sub ? el("div", { "class": "lsub", text: tp.sub }) : null
-      ]),
-      el("div", { "class": "status" }, [
-        weakN ? el("span", { "class": "schip weak", text: "🔁 틀린 항목 " + weakN + "개" }) : null,
-        recentLine(it),
-        academyLine(it)
-      ]),
-      el("div", { "class": "row mainbtns" }, [
-        el("button", { type: "button", "class": "primary big", "data-b": "study", text: "외우기", onclick: study }),
-        el("button", { type: "button", "class": "primary big", "data-b": "make", text: "시험지 만들기", onclick: function () { openMaker(it.id); } })
-      ]),
+    exp = el("div", { "class": "lexp" }, [
+      recentLine(it),
+      academyLine(it),
       el("div", { "class": "row subbtns" }, [
         el("button", { type: "button", "data-b": "weak", text: "틀린 단어 표시", onclick: function () { openWeak(it.id); } }),
         el("button", { type: "button", "class": "acadbtn", "data-b": "academy", text: "📝 학원 점수", onclick: function () { openAcademy(it.id); } }),
         doneAt
           ? el("button", { type: "button", "class": "donebtn", text: "↩ 다시 위로", onclick: function () { WT.store.setDone(it.id, false); renderLessons(); } })
-          : el("button", { type: "button", "class": "donebtn", text: "✅ 시험 끝", onclick: function () {
+          : el("button", { type: "button", "class": "donebtn", text: "✅ 시험 봤어요", onclick: function () {
             WT.store.setDone(it.id, true);
             state.doneNotice = it.id;
             renderLessons();
@@ -260,6 +265,37 @@
       ]),
       parent
     ]);
+    exp.hidden = !open;
+    var more = el("button", { type: "button", "class": "lmore", "aria-label": "더 보기", "aria-expanded": open ? "true" : "false", text: "⋯", onclick: toggle });
+    card = el("div", { "class": "card lesson k-" + it.kind + (doneAt ? " done" : "") + (open ? " open" : ""), "data-id": it.id }, [
+      el("div", { "class": "lrow" }, [
+        el("div", { "class": "lnum", "aria-hidden": "true" }, [el("small", { text: it.kind === "word" ? "Lesson" : "Chunk" }), el("b", { text: lessonNo(it) })]),
+        el("div", { "class": "head", role: "button", tabindex: "0", onclick: toggle }, [
+          // 화면에는 숨기고 읽기 프로그램·찾기용으로 전체 이름을 둔다(예: 단어 Lesson 7 The Coin Club)
+          el("span", { "class": "sr", text: lessonTitle(it) }),
+          el("div", { "class": "ln1" }, [
+            el("span", { "class": "lname", text: it.kind === "word" ? (tp.sub || "Lesson " + d.lesson) : (tp.pre || "Chunk Quiz") }),
+            el("span", { "class": "owner", text: ownerLabel(d.owner) })
+          ]),
+          el("div", { "class": "chips" }, [
+            doneAt ? el("span", { "class": "chip done", text: "✅ 시험 끝 " + fmtDay(doneAt) }) : null,
+            // 틀린 항목이 있으면 누르면 바로 「틀린 것만 외우기」가 열리는 버튼
+            weakN ? el("button", { type: "button", "class": "chip weak", "data-r": "review", text: "🔁 틀린 항목 " + weakN + "개", onclick: function (e) { e.stopPropagation(); study("weak"); } }) : null,
+            ac ? el("span", { "class": "chip ac", text: "📝 학원 " + scoreText(ac) + (ac.score === ac.total ? " 🏆" : "") }) : null,
+            rs ? el("span", { "class": "chip tab", text: "태블릿 " + rs.score + "/" + rs.total }) : null,
+            !weakN && !ac && !rs && !doneAt ? el("span", { "class": "chip none", text: "아직 안 해 봤어요" }) : null
+          ])
+        ]),
+        el("div", { "class": "lacts" }, [
+          // 진한 버튼은 「외우기」 하나만, 「시험지 만들기」는 테두리 버튼
+          el("button", { type: "button", "class": "primary", "data-b": "study", text: "외우기", onclick: function () { study("all"); } }),
+          el("button", { type: "button", "data-b": "make", text: "시험지 만들기", onclick: function () { openMaker(it.id); } }),
+          more
+        ])
+      ]),
+      exp
+    ]);
+    return card;
   }
 
   // ---------------------------------------------------------------- 학원 시험 점수
@@ -371,8 +407,8 @@
       if (!lessons.length) return;
       var who = conn ? ownerLabel(WT.sync.CHILD_OWNER[mc ? mc.active : conn.child]) + " " : "";
       box.appendChild(el("details", { "class": "card acboard", id: "academyEmpty" }, [
-        el("summary", {}, [el("span", { "class": "stitle", text: "📊 " + who + "학원 점수 0개" }), el("span", { "class": "srecent", text: "단원 카드의 「📝 학원 점수」로 적어요" })]),
-        el("p", { "class": "hint", style: "margin-top:8px", text: "학원에서 시험을 보면 그 단원 카드의 「📝 학원 점수」를 눌러 날짜, 점수, 틀린 것, 메모를 적어요. 적은 점수는 여기에 표로 모이고 단어 시험·Chunk Quiz 평균도 보여요." })
+        el("summary", {}, [el("span", { "class": "stitle", text: "📊 " + who + "학원 점수" }), el("span", { "class": "srecent", text: "아직 기록한 점수가 없어요" })]),
+        el("p", { "class": "hint", style: "margin-top:8px", text: "학원에서 시험을 보면 그 단원 줄의 「⋯」을 누르고 「📝 학원 점수」에서 날짜, 점수, 틀린 것, 메모를 적어요. 적은 점수는 여기에 표로 모이고 단어 시험·Chunk Quiz 평균도 보여요." })
       ]));
       return;
     }

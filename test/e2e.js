@@ -91,10 +91,11 @@ function getJson(url) {
 
   // 시험지 만들기: 한선 단어 L7 (연습 페이지 문장만)
   async function openMaker(re) {
-    await ev("(function(){var cards=Array.from(document.querySelectorAll('#lessonList .card'));var c=cards.filter(function(x){return re.test(x.innerText)})[0];Array.from(c.querySelectorAll('button')).filter(function(b){return b.textContent==='시험지 만들기'})[0].click();})()".replace("re.test", "new RegExp(" + JSON.stringify(re.source) + "," + JSON.stringify(re.flags) + ").test"));
+    await ev("(function(){var cards=Array.from(document.querySelectorAll('#lessonList .card'));var c=cards.filter(function(x){return re.test(x.textContent)})[0];Array.from(c.querySelectorAll('button')).filter(function(b){return b.textContent==='시험지 만들기'})[0].click();})()".replace("re.test", "new RegExp(" + JSON.stringify(re.source) + "," + JSON.stringify(re.flags) + ").test"));
     await sleep(700);
   }
-  await openMaker(/아이 B[\s\S]*단어 Lesson 7/);
+  // 단원 줄은 이름(숨긴 글자)이 아이 이름보다 앞에 오고, 아이 이름·부모님용은 숨기거나 접으므로 textContent 로 찾는다.
+  await openMaker(/단어 Lesson 7[\s\S]*아이 B/);
   var html1 = await ev("document.getElementById('sheet').srcdoc");
   check(html1.length > 5000 && /Lesson 7/.test(html1), "시험지가 미리보기에 나옴");
   check((html1.match(/<tr class="[wm]">/g) || []).length === 10, "10문항");
@@ -126,7 +127,7 @@ function getJson(url) {
   check(bad === 0, "한선 시험지 정답지에 연습 페이지 밖 문장이 없음");
 
   // 한나 단어 L8: 해석이 정답지에 나옴
-  await openMaker(/아이 A[\s\S]*단어 Lesson 8/);
+  await openMaker(/단어 Lesson 8[\s\S]*아이 A/);
   var html3 = await ev("document.getElementById('sheet').srcdoc");
   check(/Lesson 8/.test(html3), "한나 단어 L8 시험지");
   await ev("var s=document.getElementById('wMode'); s.value='all-write'; s.dispatchEvent(new Event('change'))");
@@ -136,7 +137,7 @@ function getJson(url) {
   await shot("05_시험지_한나전체쓰기");
 
   // chunk
-  await openMaker(/아이 B[\s\S]*chunk/);
+  await openMaker(/아이 B[\s\S]*chunk 문장/);
   var html5 = await ev("document.getElementById('sheet').srcdoc");
   check(/Chunk Quiz Lesson 7/.test(html5) && /class="hw"/.test(html5), "한선 chunk 시험지에 첫 글자 힌트가 있음");
   info = await ev("document.getElementById('makeInfo').innerText");

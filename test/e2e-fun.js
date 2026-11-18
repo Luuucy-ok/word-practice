@@ -104,23 +104,34 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   check(opts === "basic,pastel,berry,star" && /이 기기/.test(await T("#themeRows")), "설정 「꾸미기」: 연결 안 한 기기는 「이 기기」 한 줄에 4가지(기본, 파스텔 다이어리, 딸기 우유, 별빛 마법)");
   check(await ev("document.getElementById('soundOn').checked"), "효과음은 처음에 켜져 있음");
   await tab("lessons");
-  check(/스티커 0개/.test(await T("#stickerBox")) && /끝내면 받아요/.test(await T("#stickerBox")), "단원 화면 위에 스티커 판(0개, 받는 방법 안내)");
-  // 1-2) 아이용 단원 화면: 종류별 구역, 큰 제목, 부모님용 정보는 접어 둠
+  var topTxt = await ev("document.getElementById('stickerBox').textContent");
+  check(/스티커 0개/.test(topTxt) && /눌러서 받는 방법 보기/.test(topTxt) && /하나씩 받아요/.test(topTxt), "맨 위 스티커 칸(0개), 누르면 받는 방법 안내");
+  // 1-2) 아이용 단원 화면(A안 한 줄 목록): 종류별 구역, 한 줄에 번호·이름·버튼, 나머지와 부모님용은 펼쳐야 보임
   var heads = await ev("Array.from(document.querySelectorAll('#lessonList > h2.kindhead')).map(function(h){return h.className+'|'+h.textContent}).join(' / ')");
-  check(/k-word\|📘단어 시험월·수1개/.test(heads) && /k-chunk\|🧩Chunk 시험금1개/.test(heads) && heads.indexOf("k-word") < heads.indexOf("k-chunk"), "단원 화면이 「📘 단어 시험 · 월·수」와 「🧩 Chunk 시험 · 금」 구역으로 나뉨(단어 먼저)");
+  check(/k-word|📘단어 시험월·수1개/.test(heads) && /k-chunk|🧩Chunk 시험금1개/.test(heads) && heads.indexOf("k-word") < heads.indexOf("k-chunk"), "단원 화면이 「📘 단어 시험 · 월·수」와 「🧩 Chunk 시험 · 금」 구역으로 나뉨(단어 먼저)");
   var order = await ev("Array.from(document.querySelectorAll('#lessonList > *')).map(function(n){return n.tagName==='H2'?'H':(n.classList.contains('k-word')?'w':(n.classList.contains('k-chunk')?'c':'?'))}).join('')");
-  check(order === "HwHc", "각 구역 머리말 아래에 그 종류의 카드가 옴(" + order + ")");
+  check(order === "HwHc", "각 구역 머리말 아래에 그 종류의 줄이 옴(" + order + ")");
   var wCard = "Array.from(document.querySelectorAll('#lessonList .card.lesson.k-word'))[0]";
+  var h = await ev("Math.round(" + wCard + ".getBoundingClientRect().height)");
+  check(h <= 96, "단원 한 줄의 높이가 낮음(" + h + "px, 96px 이하)");
+  check((await ev(wCard + ".querySelector('.lnum b').textContent")) === String(W.lesson), "왼쪽 색 상자에 Lesson 번호");
   var vis = await ev(wCard + ".innerText");
-  check(/📘 단어 시험/.test(vis) && /Lesson 7/.test(vis) && !/교재 대조|부모님이 올림|문장 출처|해석 필수/.test(vis), "카드에는 종류·Lesson 번호가 크게 보이고, 교재 대조·단원 구성 같은 부모님용 정보는 보이지 않음");
-  check((await ev(wCard + ".querySelector('.lmain').textContent")) === "Lesson " + W.lesson && parseFloat(await ev("getComputedStyle(" + wCard + ".querySelector('.lmain')).fontSize")) >= 28, "Lesson 번호가 큰 글씨(28px 이상)");
-  check((await ev("Array.from(" + wCard + ".querySelectorAll('.mainbtns button')).map(function(b){return b.textContent}).join()")) === "외우기,시험지 만들기", "큰 버튼은 「외우기」「시험지 만들기」 두 개");
-  check((await ev("Array.from(" + wCard + ".querySelectorAll('.parentbox button')).map(function(b){return b.textContent}).join()")) === "확인 표,삭제" && !(await ev(wCard + ".querySelector('.parentbox').open")), "「확인 표」「삭제」는 접힌 「⋯ 부모님용」 안에 있음");
+  check(!/교재 대조|부모님이 올림|문장 출처|해석 필수|학원 점수|시험 봤어요|틀린 단어 표시/.test(vis), "줄에는 부모님용 정보와 기록·관리 버튼이 보이지 않음");
+  var acts = await ev("Array.from(" + wCard + ".querySelectorAll('.lacts button')).map(function(b){return b.textContent+(b.classList.contains('primary')?'*':'')}).join()");
+  check(acts === "외우기*,시험지 만들기,⋯", "버튼은 「외우기」(진한 버튼 하나)·「시험지 만들기」(테두리)·「⋯」(" + acts + ")");
+  var bh = await ev("Math.round(" + wCard + ".querySelector('.lacts button').getBoundingClientRect().height)");
+  check(bh >= 44 && bh <= 48, "버튼 높이 44~48px(누르기 쉬운 크기, " + bh + "px)");
+  check(!(await ev("document.getElementById('lessonList').classList.contains('single')")) && (await ev("getComputedStyle(" + wCard + ".querySelector('.owner')).display")) !== "none", "두 아이 단원이 같이 보이면 아이 이름이 보임");
+  await ev(wCard + ".querySelector('.lmore').click()");
+  check(!(await ev(wCard + ".querySelector('.lexp').hidden")) && /학원 점수/.test(await ev(wCard + ".innerText")) && /시험 봤어요/.test(await ev(wCard + ".innerText")) && /틀린 단어 표시/.test(await ev(wCard + ".innerText")), "「⋯」을 누르면 틀린 단어 표시·학원 점수·시험 봤어요가 펼쳐짐");
+  check((await ev("Array.from(" + wCard + ".querySelectorAll('.parentbox button')).map(function(b){return b.textContent}).join()")) === "확인 표,삭제" && !(await ev(wCard + ".querySelector('.parentbox').open")), "「확인 표」「삭제」는 그 안의 접힌 「⋯ 부모님용」에 있음");
   await ev(wCard + ".querySelector('.parentbox > summary').click()");
   check(/교재 대조/.test(await ev(wCard + ".innerText")) && /문장 출처/.test(await ev(wCard + ".innerText")), "「⋯ 부모님용」을 누르면 교재 대조·단원 구성이 보임");
   check((await ev("(function(){var a=document.getElementById('lessonList'),b=document.getElementById('parentArea');return !!(a.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING)})()")) && !(await ev("document.getElementById('importBox').open")), "단원 파일 가져오기·받기 상태는 단원 목록 아래 「부모님용」으로 옮기고, 단원이 있으면 접어 둠");
   await shot("f0_기본");
   await ev(wCard + ".querySelector('.parentbox').open=false");
+  await ev(wCard + ".querySelector('.lmore').click()");
+  check(await ev(wCard + ".querySelector('.lexp').hidden"), "「⋯」을 다시 누르면 접힘");
 
   // 2) 테마 고르기 → 바로 바뀌고 새로 고침해도 남음
   for (var name of ["pastel", "berry", "star"]) {
@@ -136,7 +147,8 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   await ev("document.fonts.ready");
   await sleep(300);
   var fonts = await ev("(function(){return {tab:getComputedStyle(document.querySelector('#tabs button')).fontFamily,body:getComputedStyle(document.body).fontFamily,jua:document.fonts.check('16px Jua'),nunito:document.fonts.check('800 16px Nunito')}})()");
-  check(/Jua/.test(fonts.tab) && !/Jua/.test(fonts.body) && fonts.jua, "제목·버튼은 앱에 넣은 Jua 글꼴, 본문은 기본 글꼴(글꼴 파일 로드됨)");
+  var h1f = await ev("getComputedStyle(document.querySelector('.bar h1')).fontFamily");
+  check(/Jua/.test(h1f) && !/Jua/.test(fonts.tab) && !/Jua/.test(fonts.body) && fonts.jua, "둥근 글꼴(Jua)은 제목에만, 탭·버튼·본문은 읽기 쉬운 기본 글꼴(글꼴 파일 로드됨)");
   check(await ev("getComputedStyle(document.querySelector('.bar h1'),'::after').content.indexOf('✨')>=0"), "제목 옆에 테마 그림(✨)");
 
   // 3) 외우기: 진행 표시, 맞힘·틀림 효과음과 색종이, 끝나면 스티커
@@ -251,21 +263,21 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   var topTitles = function () { return ev("Array.from(document.querySelectorAll('#lessonList > .card.lesson .head')).map(function(c){return c.textContent}).join(' | ')"); };
   var inDone = function (t) { return ev("Array.from(document.querySelectorAll('#doneGroup .card.lesson')).some(function(c){return c.textContent.indexOf(" + JSON.stringify(t) + ")>=0})"); };
   check(!(await ev("!!document.getElementById('doneGroup')")), "처음에는 「시험 끝난 단원」 묶음이 없음");
-  await clickCard(wTitle, "✅ 시험 끝");
+  await clickCard(wTitle, "✅ 시험 봤어요");
   check((await inDone(wTitle)) && (await topTitles()).indexOf(wTitle) < 0, "「시험 끝」을 누르면 그 단원이 위 목록에서 빠지고 아래 묶음으로 감");
   check(!(await ev("document.getElementById('doneGroup').open")) && /시험 끝난 단원 1개/.test(await T("#doneGroup > summary")), "아래 묶음은 접혀 있고 「시험 끝난 단원 1개」로 보임");
   check((await T("#doneNotice")).indexOf(wTitle) >= 0 && /맨 아래/.test(await T("#doneNotice")), "옮겼다는 안내와 「되돌리기」가 위에 나옴");
   await shot("f11_시험끝_접힘");
   await click("#btnUndoDone");
   check(!(await inDone(wTitle)) && (await topTitles()).indexOf(wTitle) >= 0 && !(await ev("!!document.getElementById('doneGroup')")), "「되돌리기」를 누르면 다시 위로 올라옴");
-  await clickCard(wTitle, "✅ 시험 끝");
+  await clickCard(wTitle, "✅ 시험 봤어요");
   await open();
   check((await inDone(wTitle)) && !(await ev("!!document.getElementById('doneNotice')")), "새로 고침해도 시험 끝 표시가 남고, 안내는 한 번만 나옴");
   await ev("document.querySelector('#doneGroup > summary').click()");
   check((await ev("document.getElementById('doneGroup').open")) && /✅ 시험 끝 \d+\/\d+/.test(await ev("document.querySelector('#doneGroup .card.lesson').innerText")), "묶음을 누르면 펼쳐지고, 카드에 「✅ 시험 끝 날짜」 표시");
   await shot("f12_시험끝_펼침");
   check(JSON.parse(await ev("WT.store.exportAll()")).settings.done !== undefined, "시험 끝 표시가 백업에 들어감");
-  await clickCard(cTitle, "✅ 시험 끝");
+  await clickCard(cTitle, "✅ 시험 봤어요");
   check(/지금 공부할 단원이 없어요/.test(await T("#lessonList")) && (await ev("document.getElementById('doneGroup').open")), "모두 끝내면 「지금 공부할 단원이 없어요」, 펼친 묶음은 펼친 채로 남음");
   await clickCard(wTitle, "↩ 다시 위로");
   check((await topTitles()).indexOf(wTitle) >= 0 && /시험 끝난 단원 1개/.test(await T("#doneGroup > summary")), "펼친 묶음의 「다시 위로」로도 올릴 수 있음");
@@ -275,7 +287,7 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   var acOpen = async function (t) { await clickCard(t, "📝 학원 점수"); await sleep(100); };
   var setVal = function (id, v) { return ev("(function(){var i=document.getElementById(" + JSON.stringify(id) + ");i.value=" + JSON.stringify(v) + ";i.dispatchEvent(new Event('input',{bubbles:true}))})()"); };
   var cardOf = function (t) { return ev("Array.from(document.querySelectorAll('#lessonList .card.lesson')).filter(function(c){return c.textContent.indexOf(" + JSON.stringify(t) + ")>=0})[0].textContent"); };
-  check(/학원 점수 0개/.test(await ev("document.getElementById('academyBox').textContent")) && /「📝 학원 점수」로 적어요/.test(await ev("document.getElementById('academyBox').textContent")), "점수를 아직 안 적었어도 「📊 학원 점수 0개」 칸과 적는 방법이 보임");
+  check(/아직 기록한 점수가 없어요/.test(await ev("document.getElementById('academyBox').textContent")) && /「📝 학원 점수」에서/.test(await ev("document.getElementById('academyBox').textContent")), "점수를 아직 안 적었어도 「📊 학원 점수 · 아직 기록한 점수가 없어요」 칸과 적는 방법이 보임");
   await acOpen(wTitle);
   check(!(await ev("document.getElementById('dlg').hidden")) && /학원 점수/.test(await T("#dlgTitle")) && (await ev("document.getElementById('acTotal').value")) === "100" && /^\d{4}-\d{2}-\d{2}$/.test(await ev("document.getElementById('acDate').value")), "「📝 학원 점수」: 창이 열리고 단어 시험 만점 100점, 날짜는 오늘로 채워짐");
   await click("#btnAcSave");

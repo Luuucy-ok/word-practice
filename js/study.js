@@ -785,7 +785,8 @@
     var ok = actsFor(lesson.kind).some(function (a) { return a.id === pref.act; });
     cur = { lesson: lesson, all: all, ctx: ctx || {}, pref: {
       act: ok ? pref.act : "cards",
-      scope: pref.scope === "weak" ? "weak" : "all",
+      // 단원 줄의 「외우기」는 전체로, 「🔁 틀린 항목」은 약한 항목만으로 연다. 범위를 주지 않으면 지난번 고른 범위.
+      scope: ctx && (ctx.scope === "weak" || ctx.scope === "all") ? ctx.scope : (pref.scope === "weak" ? "weak" : "all"),
       face: pref.face === "english" ? "english" : "meaning",
       groups: Array.isArray(pref.groups) ? pref.groups : null
     } };

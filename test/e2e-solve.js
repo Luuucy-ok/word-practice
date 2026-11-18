@@ -65,7 +65,7 @@ var C = load(/^A_chunk.*L07-08/);
     return ev("(function(){var c=Array.from(document.querySelectorAll('#lessonList .card')).filter(function(x){return x.innerText.indexOf(" + JSON.stringify(text) + ")>=0})[0];" +
       "Array.from(c.querySelectorAll('button')).filter(function(x){return x.textContent===" + JSON.stringify(btn) + "})[0].click();return true})()");
   }
-  function cardText(text) { return ev("Array.from(document.querySelectorAll('#lessonList .card')).filter(function(x){return x.innerText.indexOf(" + JSON.stringify(text) + ")>=0})[0].innerText"); }
+  function cardText(text) { return ev("Array.from(document.querySelectorAll('#lessonList .card')).filter(function(x){return x.innerText.indexOf(" + JSON.stringify(text) + ")>=0})[0].textContent"); } // 펼치는 칸 안 글자까지
   // 화면의 입력칸에 글자를 넣는다(키보드로 친 것처럼 input 이벤트를 보낸다). wrongAt 문항은 일부러 틀리게 쓴다.
   function fillAll(opt) {
     return ev("(function(o){var cur=WT.solve._current();var q=cur.quiz;q.items.forEach(function(it,i){" +

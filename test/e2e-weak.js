@@ -68,7 +68,7 @@ var C = load(/^A_chunk.*L07-08/);
       "var b=Array.from(c.querySelectorAll('button')).filter(function(x){return x.textContent===" + JSON.stringify(btnText) + "})[0];b.click();return true})()");
   }
   function cardText(cardText) {
-    return ev("Array.from(document.querySelectorAll('#lessonList .card')).filter(function(x){return x.innerText.indexOf(" + JSON.stringify(cardText) + ")>=0})[0].innerText");
+    return ev("Array.from(document.querySelectorAll('#lessonList .card')).filter(function(x){return x.innerText.indexOf(" + JSON.stringify(cardText) + ")>=0})[0].textContent"); // 펼치는 칸 안 글자까지
   }
   function sheet() { return ev("document.getElementById('sheet').srcdoc"); }
 
