@@ -343,19 +343,16 @@ html[data-theme="berry"] #tabs{gap:6px}
 html[data-theme="berry"] #tabs button{color:#ffe7ee;border-radius:12px;border-bottom:0;min-height:40px}
 html[data-theme="berry"] #tabs button.on{background:#fff;color:#ff4f86}
 html[data-theme="berry"] .solvebar{background:#fff;border-bottom:3px solid #ffd0de}
-html[data-theme="berry"] .card{border:0;box-shadow:0 6px 0 #ffd0de;border-radius:22px}
-html[data-theme="berry"] button,html[data-theme="berry"] .btn{border:0;border-radius:99px;background:#fff0f5;color:#e64980;box-shadow:0 4px 0 #ffc2d4}
-html[data-theme="berry"] button:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 #ffc2d4}
-html[data-theme="berry"] button.primary,html[data-theme="berry"] button.opt.on{background:#ff5c8a;color:#fff;box-shadow:0 4px 0 #d6336c}
-html[data-theme="berry"] button.danger{background:#fff0f0;color:var(--warn);box-shadow:0 4px 0 #ffd6d6}
-html[data-theme="berry"] button.act{border:2px solid transparent}
-html[data-theme="berry"] button.act.on{border-color:#ff5c8a;background:#fff}
-html[data-theme="berry"] .flash{border:2px solid #ffe0ea;box-shadow:0 7px 0 #ffd0de}
+/* 그림자 없이 얇은 테두리(파스텔·별빛과 같은 방식, 2026-11-18 사용자 요청) */
+html[data-theme="berry"] .card{border:2px solid #ffe0ea;box-shadow:none}
+html[data-theme="berry"] button,html[data-theme="berry"] .btn{border:2px solid #ffd0de;background:#fff;color:#e64980;box-shadow:none}
+html[data-theme="berry"] button.primary,html[data-theme="berry"] button.opt.on{background:#ff5c8a;border-color:#ff5c8a;color:#fff}
+html[data-theme="berry"] button.danger{background:#fff;color:var(--warn);border-color:#f5c2c7}
+html[data-theme="berry"] button.act.on{border-color:#ff5c8a;background:#fff0f5}
+html[data-theme="berry"] .flash{border:2px solid #ffe0ea;box-shadow:none}
 html[data-theme="berry"] .qcard{border:2px solid #ffe0ea}
-html[data-theme="berry"] button.tile{background:#ff8fb1;color:#fff;box-shadow:0 4px 0 #e64980}
-html[data-theme="berry"] .tpool button.tile:nth-child(3n){background:#ffb86b;box-shadow:0 4px 0 #f08c2a}
-html[data-theme="berry"] .tpool button.tile:nth-child(4n){background:#b79cff;box-shadow:0 4px 0 #8a6cf0}
-html[data-theme="berry"] .tline button.tile{background:#fff;color:#ff4f86;box-shadow:0 3px 0 #ffc2d4;border:2px solid #ff8fb1}
+html[data-theme="berry"] button.tile{background:#fff0f5;border:2px solid #ffc2d4;color:#d6336c;box-shadow:none}
+html[data-theme="berry"] .tline button.tile{background:#fff;color:#ff4f86;border:2px solid #ff8fb1;box-shadow:none}
 html[data-theme="berry"] .fko{color:#ff4f86}
 
 /* C 별빛 마법 */
