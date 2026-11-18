@@ -146,6 +146,23 @@ var FAKE_SPEECH = "(function(){var v={name:'Fake',lang:'en-US',localService:true
   await sleep(100);
   check(!(await shown()), "시험 화면을 닫으면 자판이 내려감");
 
+  // 3-2) S펜으로 누르면 앱 자판 대신 S펜 텍스트 입력, 손가락으로 누르면 앱 자판
+  function tapInput(sel, kind) {
+    return ev("(function(){var i=document.querySelector(" + JSON.stringify(sel) + ");document.activeElement&&document.activeElement.blur();" +
+      "i.dispatchEvent(new PointerEvent('pointerdown',{pointerType:" + JSON.stringify(kind) + ",bubbles:true}));i.focus();return true})()");
+  }
+  await clickCard(wTitle, "외우기");
+  await click("#studyBody button.act[data-act=hint]");
+  await click("#btnStudyStart");
+  await sleep(200);
+  await tapInput("#studyBody input.ans", "pen");
+  await sleep(50);
+  check(!(await shown()) && !(await ev("document.querySelector('#studyBody input.ans').hasAttribute('inputmode')")), "S펜으로 입력칸을 누르면 앱 자판이 내려가고 기기의 S펜 입력을 씀");
+  await tapInput("#studyBody input.ans", "touch");
+  await sleep(50);
+  check((await shown()) && (await ev("document.querySelector('#studyBody input.ans').getAttribute('inputmode')")) === "none", "손가락으로 다시 누르면 앱 자판이 뜸");
+  await click("#btnStudyClose");
+
   // 4) 설정의 「키보드 확인」 칸은 기기 키보드 그대로
   await ev("document.querySelector('#tabs button[data-tab=settings]').click()");
   await ev("document.getElementById('kbdTest').focus()");

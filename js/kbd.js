@@ -4,6 +4,7 @@
  * - 대문자 키(⇧)는 한 글자만 대문자로 쓰고 돌아온다. 자동 대문자는 없다.
  * - 적용 대상: #solve(태블릿 시험), #study(외우기) 안의 input.ans. 설정의 「키보드 확인」 칸은 기기 키보드 그대로.
  * - 설정 settings.appKeyboard 가 false 면 쓰지 않는다(기본은 켬). PC 의 실제 키보드 입력은 그대로 된다.
+ * - S펜으로 입력칸을 누르면 앱 자판을 띄우지 않고 기기의 S펜 텍스트 입력을 쓴다(손가락은 앱 자판).
  */
 (function (root) {
   "use strict";
@@ -134,9 +135,25 @@
     doc.body.classList.remove("kbd-open");
   }
 
+  // S펜으로 입력칸을 누르면 앱 자판 대신 태블릿의 S펜 텍스트 입력을 쓰게 한다(2026-11-18 태블릿에서 틀린 철자 freind 가
+  // 고쳐지지 않고 그대로 남는 것을 확인). 손가락·마우스로 누르면 앱 자판을 쓴다. 포커스는 pointerdown 다음에 오므로 여기서 정한다.
+  var penFocus = false;
   function bind() {
+    doc.addEventListener("pointerdown", function (e) {
+      if (!isTarget(e.target)) return;
+      if (e.pointerType === "pen") {
+        penFocus = true;
+        e.target.removeAttribute("inputmode");
+        if (target) hide();
+      } else {
+        penFocus = false;
+        prep(e.target);
+      }
+    }, true);
     doc.addEventListener("focusin", function (e) {
-      if (enabled() && isTarget(e.target)) show(e.target);
+      if (!(enabled() && isTarget(e.target))) return;
+      if (penFocus) { penFocus = false; return; }
+      show(e.target);
     });
     doc.addEventListener("focusout", function () {
       // 다른 입력칸으로 옮기는 중이면 그대로 두고, 아니면 내린다.
