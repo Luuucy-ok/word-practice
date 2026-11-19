@@ -225,6 +225,8 @@
   var cur = null; // { lesson, all, ctx, pref, act, deck, flipped, checked, inputs, added }
 
   function isWeakKey(key) { return WT.store.isWeak(cur.lesson.id, key); }
+  // 복습 상자: 직접 쓰는 활동에서 처음 답한 항목을 넣는다(틀리면 1칸, 맞으면 2칸). 이미 든 항목은 그대로 둔다.
+  function boxIn(item, ok) { var o = {}; o[item.key] = !!ok; WT.store.boxEnter(cur.lesson.id, o); }
   function groupsOf(list) { var g = []; list.forEach(function (x) { if (g.indexOf(x.group) < 0) g.push(x.group); }); return g; }
 
   function phrase(item, mode, inputs) {
@@ -512,6 +514,7 @@
   function nextListen() {
     if (!cur || !cur.checked) return;
     var item = cur.deck.current();
+    boxIn(item, cur.checked.ok);
     if (cur.checked.ok) cur.deck.pass();
     else if (cur.deck.fail()) {
       // 처음 틀린 것만 약한 목록에 넣는다(이미 있으면 연속 맞힘 횟수가 0으로 돌아간다).
@@ -642,6 +645,7 @@
     var item = cur.deck.current();
     cur.checked = { ok: ok };
     cheer(ok);
+    boxIn(item, ok);
     if (ok) cur.deck.pass();
     else if (cur.deck.fail()) {
       var res = WT.store.applyGrading(cur.lesson.id, (function () { var o = {}; o[item.key] = false; return o; })());
@@ -778,6 +782,166 @@
     body.appendChild(box);
   }
 
+  // ================================================================ 오늘의 복습(5칸 상자)
+  // 여러 단원의 항목을 한 줄로 낸다. 시험처럼 영문 뜻(chunk 는 한글 뜻·해석)을 보고 쓰고, 각 항목은 한 번씩만 나온다.
+  // 첫 답으로 칸을 옮긴다: 맞히면 한 칸 위(5칸에서 맞히면 졸업), 틀리면 1칸. 틀린 단어 표시(약한 목록)는 바꾸지 않는다.
+  // practice: 끝난 뒤 「한 번 더」. 칸은 움직이지 않는다.
+  function gapText(n) { return n === 1 ? "내일" : n === 7 ? "1주 뒤" : n === 14 ? "2주 뒤" : n + "일 뒤"; }
+  function boxMini(n, on) { return el("span", { "class": "bmini" + (on ? " on" : ""), text: n >= WT.store.BOX_GRAD ? "🎓" : String(n) }); }
+  function moveLine(mv) {
+    var grad = mv.to >= WT.store.BOX_GRAD;
+    var text = grad ? "졸업! 이제 복습에 안 나와요"
+      : mv.to > mv.from ? mv.to + "칸으로 올라감 · 다음 복습 " + gapText(WT.store.BOX_DAYS[mv.to])
+      : (mv.from === 1 ? "1칸 그대로" : "1칸으로 돌아감") + " · 내일 다시";
+    return el("div", { "class": "bmove", id: "reviewMove" }, [boxMini(mv.from), doc.createTextNode(" → "), boxMini(mv.to, true), el("span", { text: " " + text })]);
+  }
+  function lessonLabel(it) { return it.kind === "word" ? "Lesson " + it.data.lesson : (it.data.title || "Chunk Quiz"); }
+
+  // entries: [{ id, key, b, lesson }] (store.reviewPlan 의 due), ctx: { who, owner, onClose, practice }
+  function openReview(entries, ctx) {
+    var cache = {};
+    var list = [];
+    entries.forEach(function (e) {
+      if (!cache[e.id]) cache[e.id] = items(e.lesson.data);
+      var item = cache[e.id].filter(function (x) { return x.key === e.key; })[0];
+      if (item) list.push({ id: e.id, key: e.key, b: e.b, kind: e.lesson.kind, label: lessonLabel(e.lesson), item: item, entry: e });
+    });
+    cur = { review: true, ctx: ctx || {}, list: list, i: 0, results: [], practice: !!(ctx && ctx.practice) };
+    $("studyTitle").textContent = (cur.practice ? "한 번 더 · " : "🔁 오늘의 복습 · ") + (cur.ctx.who || "");
+    if (WT.fun) WT.fun.enter(cur.ctx.owner);
+    $("study").hidden = false;
+    $("study").scrollTop = 0;
+    doc.body.classList.add("solving");
+    renderReview();
+  }
+
+  function renderReview() {
+    if (cur.i >= cur.list.length) { renderReviewEnd(); return; }
+    var q = cur.list[cur.i];
+    var item = q.item;
+    setSub((cur.practice ? "연습 · 상자는 그대로 · " : "") + (cur.i + 1) + " / " + cur.list.length);
+    if (WT.fun) WT.fun.progress($("studyProg"), cur.i, cur.list.length);
+    cur.checked = null;
+    var body = $("studyBody");
+    clear(body);
+    var long = item.answers.some(function (a) { return a.indexOf(" ") >= 0; });
+    cur.inputs = item.answers.map(function () { return ansInput(long ? "long" : "inline"); });
+    cur.inputs.forEach(function (inp, k) {
+      inp.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        if (cur.checked) { nextReview(); return; }
+        if (cur.inputs[k + 1]) cur.inputs[k + 1].focus(); else checkReview();
+      });
+    });
+    var from = q.label + " · " + (cur.practice ? item.group : q.b + "칸에서 온 " + (item.group === "단어" ? "단어" : item.group));
+    body.appendChild(el("div", { "class": "flash listen review", id: "studyCard", "data-key": q.key }, [
+      el("div", { "class": "fgroup", id: "reviewFrom", text: from }),
+      questionMeaning(item),
+      phrase(item, "input", cur.inputs),
+      el("div", { id: "studyFix" })
+    ]));
+    body.appendChild(el("div", { "class": "row fbtns", id: "studyBtns" }, [
+      el("button", { type: "button", "class": "primary", id: "btnCheck", text: "확인", onclick: checkReview })
+    ]));
+    try { cur.inputs[0].focus(); } catch (e) {}
+  }
+
+  function checkReview() {
+    if (!cur || !cur.review || cur.checked) return;
+    var q = cur.list[cur.i];
+    var item = q.item;
+    var given = cur.inputs.map(function (i) { return i.value; });
+    if (given.every(function (g) { return !String(g).trim(); })) { cur.inputs[0].focus(); return; }
+    var r = check(item, given);
+    cur.checked = r;
+    cur.inputs.forEach(function (i) { i.readOnly = true; });
+    var mv = null;
+    if (!cur.practice) {
+      mv = WT.store.boxAnswer(q.id, q.key, r.ok);
+      WT.store.reviewDayAdd(cur.ctx.owner, q.id, q.key);
+    }
+    cur.results.push({ q: q, ok: r.ok, mv: mv });
+    speech.say(item.say, false);
+    cheer(r.ok);
+    var fix = $("studyFix");
+    var card = $("studyCard");
+    if (r.ok) {
+      card.classList.add("right");
+      fix.appendChild(el("div", { "class": "fres" }, [el("span", { "class": "mark o", text: "○" }), doc.createTextNode(" 맞았어요!")]));
+    } else {
+      card.classList.add("wrong");
+      r.wrongAt.forEach(function (k) { cur.inputs[k].classList.add("bad"); });
+      fix.appendChild(el("div", { "class": "qfix" }, [
+        el("div", {}, [el("span", { "class": "mark x", text: "✕ " }), el("b", { text: "정답 " }), doc.createTextNode(item.answers.join(" / "))]),
+        el("div", { "class": "why", text: WT.quiz.reasonText({ kind: q.kind }, r.reason) })
+      ]));
+    }
+    var kr = koReveal(item);
+    if (kr) fix.appendChild(kr);
+    if (mv) fix.appendChild(moveLine(mv));
+    var row = $("studyBtns");
+    clear(row);
+    var nb = el("button", { type: "button", "class": "primary", id: "btnNext", text: cur.i + 1 < cur.list.length ? "다음 ›" : "끝내기", onclick: nextReview });
+    row.appendChild(nb);
+    try { nb.focus(); } catch (e) {}
+  }
+
+  function nextReview() {
+    if (!cur || !cur.review || !cur.checked) return;
+    cur.i++;
+    renderReview();
+  }
+
+  function renderReviewEnd() {
+    var res = cur.results;
+    var okN = res.filter(function (x) { return x.ok; }).length;
+    setSub("끝났어요 · " + res.length + "개");
+    var body = $("studyBody");
+    clear(body);
+    var box = el("div", { "class": "card reviewend", id: "reviewEnd" });
+    box.appendChild(el("div", { "class": "score" }, [el("b", { text: cur.practice ? "한 번 더 끝! " : "오늘 복습 끝! " }), doc.createTextNode(res.length + "개 중 " + okN + "개 맞혔어요")]));
+    if (!cur.practice) {
+      var up = res.filter(function (x) { return x.mv && x.mv.to > x.mv.from && x.mv.to < WT.store.BOX_GRAD; }).length;
+      var grad = res.filter(function (x) { return x.mv && x.mv.to >= WT.store.BOX_GRAD; }).length;
+      var down = res.length - up - grad;
+      box.appendChild(el("div", { "class": "bstat" }, [
+        el("div", { "class": "up" }, [el("b", { id: "rvUp", text: String(up) }), "올라감 ⬆"]),
+        el("div", { "class": "down" }, [el("b", { id: "rvDown", text: String(down) }), "1칸으로 ⬇"]),
+        el("div", { "class": "grad" }, [el("b", { id: "rvGrad", text: String(grad) }), "졸업 🎓"])
+      ]));
+      var lst = el("div", { "class": "blist" });
+      // 졸업 → 1칸으로 간 것(다시 볼 것) → 올라간 것 순서
+      var rank = function (x) { return x.mv.to >= WT.store.BOX_GRAD ? 0 : x.ok ? 2 : 1; };
+      res.slice().sort(function (a, b) { return rank(a) - rank(b); }).forEach(function (x) {
+        var g = x.mv.to >= WT.store.BOX_GRAD;
+        lst.appendChild(el("div", { "class": g ? "g" : x.ok ? "u" : "d" }, [
+          el("span", { text: (g ? "🎓 " : x.ok ? "⬆ " : "⬇ ") + x.q.item.word }),
+          el("span", { text: g ? x.mv.from + "칸 → 졸업" : x.mv.from + "칸 → " + x.mv.to + "칸" })
+        ]));
+      });
+      box.appendChild(lst);
+      if (WT.fun && res.length) {
+        var got = WT.fun.award(cur.ctx.owner, "오늘의 복습 " + okN + "/" + res.length);
+        box.appendChild(el("div", { "class": "sgot", id: "studySticker" }, [el("span", { "class": "sbig", text: got.s }), el("span", { text: "스티커를 받았어요!" })]));
+        WT.fun.sound("done");
+        setTimeout(function () { WT.fun.sound("sticker"); }, 450);
+        WT.fun.confetti(okN === res.length ? "big" : "small");
+      }
+    } else {
+      box.appendChild(el("p", { "class": "hint", text: "연습이라 상자는 그대로예요." }));
+    }
+    if (WT.fun) WT.fun.progress($("studyProg"), res.length, res.length);
+    var wrong = res.filter(function (x) { return !x.ok; });
+    var row = el("div", { "class": "row", style: "margin-top:12px" });
+    if (wrong.length) row.appendChild(el("button", { type: "button", "class": "primary", id: "btnReviewAgain", text: "틀린 " + wrong.length + "개 한 번 더", onclick: function () {
+      openReview(wrong.map(function (x) { return x.q.entry; }), Object.assign({}, cur.ctx, { practice: true }));
+    } }));
+    row.appendChild(el("button", { type: "button", id: "btnReviewClose", text: "단원으로 돌아가기", onclick: close }));
+    box.appendChild(row);
+    body.appendChild(box);
+  }
+
   // ---------------------------------------------------------------- 열기·닫기
   function open(lesson, ctx) {
     var all = items(lesson.data);
@@ -821,7 +985,7 @@
   WT.study = {
     items: items, select: select, check: check, Deck: Deck,
     ACTS: ACTS, actsFor: actsFor, fits: fits, hintOf: hintOf, tileSpec: tileSpec, tileBuilt: tileBuilt, shuffledOrder: shuffledOrder,
-    open: open, close: close, bind: bind,
+    open: open, close: close, bind: bind, openReview: openReview,
     _current: function () { return cur; } // 점검용
   };
 })(typeof window !== "undefined" ? window : globalThis);

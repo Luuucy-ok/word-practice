@@ -11,6 +11,8 @@
   var KEY_WEAK = "wp.weak.v1"; // 틀린 단어 표시: { 단원 id: { 항목 키: { at: 표시한 시각, ok: 표시 뒤 연속으로 맞힌 횟수 } } }. 단원 데이터와 따로 저장해서 새 단원을 받아도 남는다.
   var KEY_FIXES = "wp.fixes.v1"; // 확인 표에서 적어 둔 고칠 곳(앱의 단원은 바꾸지 않음)
   var KEY_RESULTS = "wp.results.v1"; // 화면에서 푼 시험 기록(최근 것부터 최대 MAX_RESULTS 개)
+  var KEY_BOX = "wp.box.v1"; // 5칸 상자 복습 기록(아래 「5칸 상자 복습」)
+  var KEY_BOXDAY = "wp.boxday.v1"; // 오늘 복습한 항목(하루 최대 개수 세기용)
   var MAX_RESULTS = 300;
   var CLEAR_AFTER = 2; // 약한 항목을 화면 시험에서 연속으로 이만큼 맞히면 약한 목록에서 뺀다
   var mem = {};
@@ -229,6 +231,126 @@
     return res;
   }
 
+  // ---------------------------------------------------------------- 5칸 상자 복습(Leitner)
+  // { 단원 id: { 항목 키: { b: 칸(1~5, 6 = 졸업), due: "YYYY-MM-DD"(졸업이면 null), at: 마지막으로 바뀐 시각 } } }
+  // 외우기(직접 쓰는 활동)나 태블릿 시험에서 처음 답한 항목이 들어온다(틀리면 1칸, 맞으면 2칸). 이미 있는 항목은 바꾸지 않는다.
+  // 칸은 「오늘의 복습」에서만 움직인다: 맞히면 한 칸 위로(5칸에서 맞히면 졸업), 틀리면 1칸으로. 틀린 단어 표시와는 따로 둔다.
+  var BOX_DAYS = [0, 1, 2, 4, 7, 14]; // 칸마다 다음 복습까지 날짜 수(1칸 매일 … 5칸 2주)
+  var BOX_GRAD = 6;
+  var REVIEW_MAX = 20; // 하루에 내는 복습 최대 개수(남은 것은 다음 날로)
+  var dayShift = 0; // 점검용: 날짜를 앞으로 옮긴다
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function dayStr(d) { return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+  function today() { return dayStr(new Date(Date.now() + dayShift * 864e5)); }
+  function addDays(day, n) { var p = day.split("-"); return dayStr(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]) + n)); }
+  function daysBetween(a, b) {
+    var pa = a.split("-"), pb = b.split("-");
+    return Math.round((new Date(Number(pb[0]), Number(pb[1]) - 1, Number(pb[2])) - new Date(Number(pa[0]), Number(pa[1]) - 1, Number(pa[2]))) / 864e5);
+  }
+
+  function boxAll() { var b = parse(read(KEY_BOX), {}); return isObj(b) ? b : {}; }
+  function saveBox(all) { write(KEY_BOX, JSON.stringify(all)); }
+  function boxOf(id, key) { var m = boxAll()[id]; return isObj(m) && isObj(m[key]) && typeof m[key].b === "number" ? m[key] : null; }
+
+  // byKey: { 항목 키: 맞혔는지 }. 상자에 없는 항목만 넣는다. 넣은 개수를 돌려준다.
+  function boxEnter(id, byKey) {
+    var all = boxAll();
+    var m = isObj(all[id]) ? all[id] : {};
+    var t = today(), now = new Date().toISOString(), n = 0;
+    Object.keys(byKey).forEach(function (key) {
+      if (isObj(m[key])) return;
+      var b = byKey[key] ? 2 : 1;
+      m[key] = { b: b, due: addDays(t, BOX_DAYS[b]), at: now };
+      n++;
+    });
+    if (n) { all[id] = m; saveBox(all); }
+    return n;
+  }
+
+  // 오늘의 복습에서 답한 결과로 칸을 옮긴다. { from, to, due } 를 돌려준다(to 가 6 이면 졸업).
+  function boxAnswer(id, key, ok) {
+    var all = boxAll();
+    var m = isObj(all[id]) ? all[id] : {};
+    var cur = isObj(m[key]) && typeof m[key].b === "number" ? m[key].b : 1;
+    var to = ok ? Math.min(cur + 1, BOX_GRAD) : 1;
+    var due = to >= BOX_GRAD ? null : addDays(today(), BOX_DAYS[to]);
+    m[key] = { b: to, due: due, at: new Date().toISOString() };
+    all[id] = m;
+    saveBox(all);
+    return { from: cur, to: to, due: due };
+  }
+
+  // 단원 목록(store.list() 의 항목들)에서 상자에 든 항목. 단원 데이터에서 사라진 항목은 뺀다.
+  function boxEntries(lessons) {
+    var all = boxAll(), out = [];
+    lessons.forEach(function (it) {
+      var m = all[it.id];
+      if (!isObj(m)) return;
+      var keys = {};
+      weakItems(it.data).forEach(function (x) { keys[x.key] = 1; });
+      Object.keys(m).forEach(function (key) {
+        var e = m[key];
+        if (!keys[key] || !isObj(e) || typeof e.b !== "number") return;
+        out.push({ id: it.id, key: key, b: e.b, due: e.due, lesson: it });
+      });
+    });
+    return out;
+  }
+
+  // 오늘 이미 복습한 것(아이마다 하루치): { 아이: { date, keys: ["단원 id\u0001항목 키"] } }. 백업에는 넣지 않는다.
+  function reviewDay(owner) {
+    var d = parse(read(KEY_BOXDAY), {});
+    var r = isObj(d) && isObj(d[owner]) ? d[owner] : null;
+    return r && r.date === today() && Array.isArray(r.keys) ? r.keys : [];
+  }
+  function reviewDayAdd(owner, id, key) {
+    var d = parse(read(KEY_BOXDAY), {});
+    if (!isObj(d)) d = {};
+    var keys = reviewDay(owner);
+    var k = id + "\u0001" + key;
+    if (keys.indexOf(k) < 0) keys.push(k);
+    d[owner] = { date: today(), keys: keys };
+    write(KEY_BOXDAY, JSON.stringify(d));
+  }
+
+  // 한 아이의 상자 현황: counts[1..5], grad(졸업 수), due(오늘 낼 항목, 칸 낮은 것·오래된 것 먼저, 하루 최대까지),
+  // dueAll(밀린 것 포함 전체), doneToday(오늘 복습한 수), next({ date, n }: 오늘 이후 가장 가까운 복습)
+  function reviewPlan(lessons, owner) {
+    var mine = lessons.filter(function (it) { return it.data.owner === owner; });
+    var ents = boxEntries(mine);
+    var t = today();
+    var counts = [0, 0, 0, 0, 0, 0], grad = 0;
+    ents.forEach(function (e) { if (e.b >= BOX_GRAD) grad++; else counts[Math.max(1, e.b)]++; });
+    var doneKeys = reviewDay(owner);
+    var dueAll = ents.filter(function (e) { return e.b < BOX_GRAD && e.due && e.due <= t && doneKeys.indexOf(e.id + "\u0001" + e.key) < 0; })
+      .sort(function (a, b) { return a.b - b.b || String(a.due).localeCompare(String(b.due)); });
+    var room = Math.max(0, REVIEW_MAX - doneKeys.length);
+    var later = ents.filter(function (e) { return e.b < BOX_GRAD && e.due && e.due > t; });
+    var next = null;
+    later.forEach(function (e) { if (!next || e.due < next.date) next = { date: e.due, n: 0 }; });
+    if (next) next.n = later.filter(function (e) { return e.due === next.date; }).length;
+    return { owner: owner, total: ents.length, counts: counts, grad: grad, due: dueAll.slice(0, room), dueAll: dueAll, doneToday: doneKeys.length, doneKeys: doneKeys, next: next, today: t };
+  }
+
+  // 백업의 상자 기록을 합친다. 같은 항목은 더 나중에 바뀐 것을 남긴다.
+  function mergeBox(incoming) {
+    if (!isObj(incoming)) return 0;
+    var all = boxAll(), n = 0;
+    Object.keys(incoming).forEach(function (id) {
+      var m = incoming[id];
+      if (!isObj(m)) return;
+      Object.keys(m).forEach(function (key) {
+        var e = m[key];
+        if (!isObj(e) || typeof e.b !== "number") return;
+        if (!isObj(all[id])) all[id] = {};
+        var x = all[id][key];
+        if (!isObj(x) || String(e.at || "") > String(x.at || "")) { all[id][key] = e; n++; }
+      });
+    });
+    if (n) saveBox(all);
+    return n;
+  }
+
   // ---------------------------------------------------------------- 확인 표의 고칠 곳 목록
   // 앱의 단원은 바꾸지 않고, 부모님이 원본(PC 의 단원 데이터)을 고칠 수 있게 「어디를 무엇으로」만 모아 둔다.
   // 항목: { id: 단원 id, label: 단원 이름, owner, path: ["words", 2, "ko"] 같은 위치, where: 사람이 읽는 위치, before, after, at }
@@ -389,7 +511,7 @@
 
   // 붙여 넣은 글이나 파일 내용을 가져온다. 단원 하나, 단원 목록, 백업 파일 모두 받는다.
   function importText(text, label) {
-    var res = { added: [], updated: [], errors: [], settingsRestored: false, weakRestored: 0, resultsRestored: 0, fixesRestored: 0 };
+    var res = { added: [], updated: [], errors: [], settingsRestored: false, weakRestored: 0, resultsRestored: 0, fixesRestored: 0, boxRestored: 0 };
     var obj;
     try { obj = JSON.parse(text); }
     catch (e) { res.errors.push((label || "입력") + ": JSON 형식이 아닙니다(" + e.message + ")"); return res; }
@@ -401,6 +523,7 @@
       if (isObj(obj.weak)) res.weakRestored = mergeWeak(obj.weak);
       if (Array.isArray(obj.results)) res.resultsRestored = mergeResults(obj.results);
       if (Array.isArray(obj.fixes)) res.fixesRestored = mergeFixes(obj.fixes);
+      if (isObj(obj.box)) res.boxRestored = mergeBox(obj.box);
     } else items = [obj];
     items.forEach(function (raw, i) {
       var name = (label || "입력") + (items.length > 1 ? " #" + (i + 1) : "");
@@ -429,11 +552,11 @@
     return n;
   }
 
-  // 백업에는 직접 가져온 단원, 설정, 틀린 단어 표시, 시험 기록만 넣는다. 연결 열쇠와 자동으로 받은 단원은 넣지 않는다.
+  // 백업에는 직접 가져온 단원, 설정, 틀린 단어 표시, 시험 기록, 복습 상자만 넣는다. 연결 열쇠와 자동으로 받은 단원은 넣지 않는다.
   function exportAll() {
     return JSON.stringify({
       app: "word-practice", version: 1, exportedAt: new Date().toISOString(),
-      settings: settings(), weak: weakAll(), results: resultsAll(), fixes: fixesAll(), lessons: manualList().map(function (x) { return x.data; })
+      settings: settings(), weak: weakAll(), results: resultsAll(), fixes: fixesAll(), box: boxAll(), lessons: manualList().map(function (x) { return x.data; })
     }, null, 1);
   }
 
@@ -442,6 +565,9 @@
     importText: importText, exportAll: exportAll, isPersistent: function () { return persistent; },
     weakItems: weakItems, isWeak: isWeak, setWeak: setWeak, clearWeak: clearWeak, weakCount: weakCount, withWeak: withWeak,
     applyGrading: applyGrading, addResult: addResult, resultsFor: resultsFor, CLEAR_AFTER: CLEAR_AFTER,
+    boxEnter: boxEnter, boxAnswer: boxAnswer, boxOf: boxOf, boxEntries: boxEntries, reviewPlan: reviewPlan, reviewDayAdd: reviewDayAdd, mergeBox: mergeBox,
+    today: today, daysBetween: daysBetween, BOX_DAYS: BOX_DAYS, BOX_GRAD: BOX_GRAD, REVIEW_MAX: REVIEW_MAX,
+    _shiftDays: function (n) { dayShift = n; }, // 점검용
     setFix: setFix, fixesFor: fixesFor, fixAt: fixAt, fixesAll: fixesAll, clearFixes: clearFixes, pruneFixes: pruneFixes, fixesText: fixesText, valueAt: valueAt,
     lessonId: lessonId, syncedState: syncedState, setSynced: setSynced, clearSynced: clearSynced,
     syncedSnapshot: syncedSnapshot, restoreSynced: restoreSynced, setActive: setActive,

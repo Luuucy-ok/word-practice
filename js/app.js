@@ -120,9 +120,61 @@
     });
   }
 
+  // 단원 화면 위의 「오늘의 복습」(5칸 상자). 지금 보이는 아이마다 카드 하나.
+  function renderReview() {
+    var box = $("reviewBox");
+    if (!box) return;
+    clear(box);
+    var lessons = WT.store.list();
+    var mc = multiChild();
+    if (mc) lessons = lessons.filter(function (x) { return x.data.owner === WT.sync.CHILD_OWNER[mc.active]; });
+    if (!lessons.length) return;
+    var owners = [];
+    lessons.forEach(function (x) { if (owners.indexOf(x.data.owner) < 0) owners.push(x.data.owner); });
+    owners.sort().forEach(function (owner) {
+      var plan = WT.store.reviewPlan(lessons, owner);
+      var who = owners.length > 1 ? " · " + ownerLabel(owner) : "";
+      var ctx = function (practice) { return { who: ownerLabel(owner), owner: owner, practice: practice, onClose: function () { renderLessons(); updateWeakControls(); } }; };
+      if (!plan.total) {
+        box.appendChild(el("details", { "class": "card rcard empty", "data-owner": owner }, [
+          el("summary", {}, [el("span", { "class": "stitle", text: "🔁 오늘의 복습" + who }), el("span", { "class": "srecent", text: "아직 상자가 비어 있어요" })]),
+          el("p", { "class": "hint", style: "margin-top:8px", text: "외우기의 듣고 쓰기·첫 글자 힌트 쓰기·펜으로 쓰기나 태블릿 시험에서 답한 단어가 복습 상자에 들어가요(틀리면 1칸, 맞으면 2칸). 그다음부터 날짜에 맞춰 여기에 다시 나와요." })
+        ]));
+        return;
+      }
+      var dueB = {};
+      plan.due.forEach(function (e) { dueB[e.b] = 1; });
+      var nextText = "";
+      if (plan.next) nextText = "다음: " + (WT.store.daysBetween(plan.today, plan.next.date) === 1 ? "내일" : fmtDay(plan.next.date + "T00:00:00")) + " " + plan.next.n + "개";
+      var due = plan.due.length;
+      var head = due
+        ? [el("b", { text: "🔁 오늘의 복습" + who }), el("span", { "class": "rcount", id: "reviewCount", text: due + "개" })]
+        : [el("b", { "class": plan.doneToday ? "ok" : "", text: (plan.doneToday ? "✅ 오늘 복습 끝!" : "🔁 오늘의 복습") + who }), nextText ? el("span", { "class": "rcount ok", text: nextText }) : null];
+      var card = el("div", { "class": "card rcard" + (due ? "" : " rest"), "data-owner": owner }, [el("div", { "class": "rhead" }, head)]);
+      var sub = due ? "지난 단원 단어가 날짜에 맞춰 다시 나와요" : plan.doneToday ? "" : "오늘은 복습할 단어가 없어요";
+      if (!due && plan.dueAll.length) sub = "오늘은 " + WT.store.REVIEW_MAX + "개까지 했어요. 남은 " + plan.dueAll.length + "개는 내일 나와요";
+      if (plan.grad) sub += (sub ? " · " : "") + "🎓 졸업 " + plan.grad + "개";
+      if (sub) card.appendChild(el("div", { "class": "rsub", text: sub }));
+      card.appendChild(el("div", { "class": "rboxes" }, [1, 2, 3, 4, 5].map(function (b) {
+        return el("div", { "class": "rbox" + (dueB[b] ? " due" : ""), "data-b": String(b) }, [
+          el("b", { text: String(plan.counts[b]) }), el("span", { text: b + "칸" }), el("small", { text: ["", "매일", "2일", "4일", "1주", "2주"][b] })
+        ]);
+      })));
+      if (due) {
+        card.appendChild(el("button", { type: "button", "class": "primary rstart", id: "btnReviewStart", text: "복습 시작 (" + due + "개)", onclick: function () { WT.study.openReview(plan.due, ctx(false)); } }));
+      } else if (plan.doneToday) {
+        var ents = WT.store.boxEntries(lessons.filter(function (x) { return x.data.owner === owner; }));
+        var again = ents.filter(function (e) { return plan.doneKeys.indexOf(e.id + "\u0001" + e.key) >= 0; });
+        if (again.length) card.appendChild(el("button", { type: "button", "class": "rstart", id: "btnReviewMore", text: "한 번 더 (상자는 그대로)", onclick: function () { WT.study.openReview(again, ctx(true)); } }));
+      }
+      box.appendChild(card);
+    });
+  }
+
   function renderLessons() {
     renderStickers();
     renderAcademy();
+    renderReview();
     var box = $("lessonList");
     clear(box);
     WT.store.pruneFixes(); // 원본이 고쳐져 새로 받은 단원에 반영된 고칠 곳은 목록에서 뺀다
@@ -603,6 +655,7 @@
     if (res.settingsRestored) parts.push("설정도 가져옴");
     if (res.weakRestored) parts.push("틀린 단어 표시 " + res.weakRestored + "개도 가져옴");
     if (res.resultsRestored) parts.push("시험 기록 " + res.resultsRestored + "개도 가져옴");
+    if (res.boxRestored) parts.push("복습 상자 " + res.boxRestored + "개도 가져옴");
     return parts.join(" · ");
   }
 
@@ -621,6 +674,7 @@
         total.updated = total.updated.concat(r.updated);
         total.errors = total.errors.concat(r.errors);
         total.weakRestored += r.weakRestored || 0;
+        total.boxRestored = (total.boxRestored || 0) + (r.boxRestored || 0);
         total.settingsRestored = total.settingsRestored || r.settingsRestored;
       });
       var ok = summarize(total);
@@ -1297,9 +1351,13 @@
           summary = { added: [], again: [], cleared: [], progress: [] };
           Object.keys(bySrc).forEach(function (src) {
             var r = WT.store.applyGrading(src, bySrc[src]);
+            WT.store.boxEnter(src, bySrc[src]); // 처음 답한 항목을 복습 상자에 넣는다(이미 든 것은 그대로)
             ["added", "again", "cleared", "progress"].forEach(function (f) { summary[f] = summary[f].concat(r[f]); });
           });
-        } else summary = WT.store.applyGrading(L.lessonId, g.byKey);
+        } else {
+          summary = WT.store.applyGrading(L.lessonId, g.byKey);
+          WT.store.boxEnter(L.lessonId, g.byKey);
+        }
         WT.store.addResult({
           at: new Date().toISOString(), lessonId: L.lessonId, owner: it.data.owner, title: q.title, kind: q.kind, mode: q.mode,
           seed: q.seed, weakOnly: !!L.weakOnly, score: g.score, total: g.total,
