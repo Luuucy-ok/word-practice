@@ -123,8 +123,11 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   check((await ev(wCard + ".querySelector('.lnum b').textContent")) === String(W.lesson), "왼쪽 색 상자에 Lesson 번호");
   var vis = await ev(wCard + ".innerText");
   check(!/교재 대조|부모님이 올림|문장 출처|해석 필수|학원 점수|시험 봤어요|틀린 단어 표시/.test(vis), "줄에는 부모님용 정보와 기록·관리 버튼이 보이지 않음");
-  var acts = await ev("Array.from(" + wCard + ".querySelectorAll('.lacts button')).map(function(b){return b.textContent+(b.classList.contains('primary')?'*':'')}).join()");
-  check(acts === "외우기*,시험지 만들기,⋯", "버튼은 「외우기」(진한 버튼 하나)·「시험지 만들기」(테두리)·「⋯」(" + acts + ")");
+  var acts = await ev("Array.from(" + wCard + ".querySelectorAll('.lacts button')).map(function(b){return (b.textContent||b.getAttribute('aria-label'))+(b.querySelector('svg')?'+':'')}).join()");
+  check(acts === "외우기+,시험지+,더 보기+", "버튼은 선 아이콘이 붙은 「외우기」·「시험지」와 아이콘만 있는 「⋯」(" + acts + ")");
+  var look = await ev("(function(){var c=" + wCard + ";var s=getComputedStyle(c.querySelector('button[data-b=study]')),m=getComputedStyle(c.querySelector('button[data-b=make]'));return [s.borderTopWidth,m.borderTopWidth,s.backgroundColor!==m.backgroundColor,s.boxShadow].join('|')})()");
+  check(look === "0px|0px|true|none", "B안: 테두리·그림자 없이 옅은 색 바탕, 외우기와 시험지 바탕색이 다름(" + look + ")");
+  check(!(await ev("/[📖✏]/.test(getComputedStyle(" + wCard + ".querySelector('button[data-b=study]'),'::before').content+getComputedStyle(" + wCard + ".querySelector('button[data-b=make]'),'::before').content)")), "이모지(📖✏️)는 빠짐");
   var bh = await ev("Math.round(" + wCard + ".querySelector('.lacts button').getBoundingClientRect().height)");
   check(bh >= 44 && bh <= 48, "버튼 높이 44~48px(누르기 쉬운 크기, " + bh + "px)");
   check(!(await ev("document.getElementById('lessonList').classList.contains('single')")) && (await ev("getComputedStyle(" + wCard + ".querySelector('.owner')).display")) !== "none", "두 아이 단원이 같이 보이면 아이 이름이 보임");
@@ -155,7 +158,7 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   await sleep(300);
   var fonts = await ev("(function(){return {tab:getComputedStyle(document.querySelector('#tabs button')).fontFamily,body:getComputedStyle(document.body).fontFamily,nsr:[400,700,800].every(function(w){return document.fonts.check(w+' 16px NanumSquareRound')}),btn:getComputedStyle(document.querySelector('#lessonList button[data-b=study]')).fontFamily+'/'+getComputedStyle(document.querySelector('#lessonList button[data-b=study]')).fontWeight,nunito:document.fonts.check('800 16px Nunito')}})()");
   var h1f = await ev("getComputedStyle(document.querySelector('.bar h1')).fontFamily");
-  check(/NanumSquareRound/.test(h1f) && /NanumSquareRound/.test(fonts.tab) && /NanumSquareRound/.test(fonts.body) && /NanumSquareRound.*\/700/.test(fonts.btn) && fonts.nsr, "테마에서는 제목·탭·본문·버튼 모두 나눔스퀘어라운드(버튼 굵게 700, 글꼴 파일 3개 로드됨)");
+  check(/NanumSquareRound/.test(h1f) && /NanumSquareRound/.test(fonts.tab) && /NanumSquareRound/.test(fonts.body) && /NanumSquareRound.*\/800/.test(fonts.btn) && fonts.nsr, "테마에서는 제목·탭·본문·버튼 모두 나눔스퀘어라운드(단원 줄 버튼 굵게 800, 글꼴 파일 3개 로드됨)");
   check(await ev("getComputedStyle(document.querySelector('.bar h1'),'::after').content.indexOf('✨')>=0"), "제목 옆에 테마 그림(✨)");
 
   // 3) 외우기: 진행 표시, 맞힘·틀림 효과음과 색종이, 끝나면 스티커
@@ -215,7 +218,7 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   // 6) 태블릿 시험: 채점하면 스티커, 만점이면 2개
   await ev("WT.fun._played.length=0");
   var bBefore = await stickerN("B");
-  await clickCard(wTitle, "시험지 만들기"); await toRegular();
+  await clickCard(wTitle, "시험지"); await toRegular();
   await sleep(500);
   check(!(await ev("document.getElementById('sheet').srcdoc.indexOf('data-theme')>=0")) && !/NanumSquareRound/.test(await ev("document.getElementById('sheet').srcdoc")), "인쇄 시험지에는 꾸미기(테마, 나눔스퀘어라운드 글꼴)가 들어가지 않음");
   await ev("document.getElementById('btnSolve').click()");

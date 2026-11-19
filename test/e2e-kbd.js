@@ -128,7 +128,7 @@ var FAKE_SPEECH = "(function(){var v={name:'Fake',lang:'en-US',localService:true
   check(!(await shown()), "외우기를 닫으면 자판이 내려감");
 
   // 3) 태블릿 시험: 「다음 ↵」 로 다음 칸, 쓴 답이 저장됨
-  await clickCard(wTitle, "시험지 만들기");
+  await clickCard(wTitle, "시험지");
   await sleep(500);
   await ev("document.getElementById('btnSolve').click()");
   await sleep(300);

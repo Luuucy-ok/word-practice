@@ -109,7 +109,7 @@ var C = load(/^A_chunk.*L07-08/);
   check(/틀린 항목 3개/.test(await cardText(wTitle)), "단원 카드에 「틀린 항목 3개」가 보임");
 
   // 3) 약한 단어만 재시험지
-  await clickCard(wTitle, "시험지 만들기"); await toRegular();
+  await clickCard(wTitle, "시험지"); await toRegular();
   await sleep(500);
   var wt = await T("#wWeakText");
   check(!(await ev("document.getElementById('wWeak').disabled")) && /3개/.test(wt), "시험지 만들기에서 「약한 단어만」이 켜지고 3개라고 나옴: " + wt);
@@ -143,7 +143,7 @@ var C = load(/^A_chunk.*L07-08/);
   check(/틀린 항목 3개를 표시했어요/.test(await T("#dlgBody")), "단어 2개와 chunk 문장 1개를 표시하면 3개로 셈");
   await shot("w3_chunk_표시");
   await ev("document.getElementById('dlgClose').click()");
-  await clickCard(cTitle, "시험지 만들기");
+  await clickCard(cTitle, "시험지");
   await sleep(500);
   var ct = await T("#cWeakText");
   check(!(await ev("document.getElementById('cWeak').disabled")) && /3개/.test(ct), "chunk 시험지 만들기에서 「약한 항목만」이 켜지고 3개라고 나옴: " + ct);

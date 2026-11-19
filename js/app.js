@@ -122,22 +122,28 @@
 
   // 단원 화면 위의 「오늘의 복습」(5칸 상자). 지금 보이는 아이마다 카드 하나.
   function renderReview() {
-    var box = $("reviewBox");
+    var box = $("reviewBox"), top = $("reviewTop");
     if (!box) return;
     clear(box);
+    if (top) clear(top);
     var lessons = WT.store.list();
     var mc = multiChild();
     if (mc) lessons = lessons.filter(function (x) { return x.data.owner === WT.sync.CHILD_OWNER[mc.active]; });
     if (!lessons.length) return;
     var owners = [];
     lessons.forEach(function (x) { if (owners.indexOf(x.data.owner) < 0) owners.push(x.data.owner); });
+    // 상자가 빈 아이가 여럿이면 맨 위 줄에 작은 칸 하나로 합친다
+    var emptyN = owners.filter(function (o) { return !WT.store.reviewPlan(lessons, o).total; }).length, emptyShown = false;
     owners.sort().forEach(function (owner) {
       var plan = WT.store.reviewPlan(lessons, owner);
       var who = owners.length > 1 ? " · " + ownerLabel(owner) : "";
       var ctx = function (practice) { return { who: ownerLabel(owner), owner: owner, practice: practice, onClose: function () { renderLessons(); updateWeakControls(); } }; };
       if (!plan.total) {
-        box.appendChild(el("details", { "class": "card rcard empty", "data-owner": owner }, [
-          el("summary", {}, [el("span", { "class": "stitle", text: "🔁 오늘의 복습" + who }), el("span", { "class": "srecent", text: "아직 상자가 비어 있어요" })]),
+        // 상자가 비었으면 맨 위 줄(스티커·학원 점수 옆)의 작은 칸으로 둔다
+        if (emptyShown) return;
+        emptyShown = true;
+        (top || box).appendChild(el("details", { "class": "card rcard empty", "data-owner": emptyN > 1 ? "" : owner }, [
+          el("summary", {}, [el("span", { "class": "stitle", text: "🔁 오늘의 복습" + (emptyN > 1 ? "" : who) }), el("span", { "class": "srecent", text: "아직 비어 있어요" })]),
           el("p", { "class": "hint", style: "margin-top:8px", text: "외우기의 듣고 쓰기·첫 글자 힌트 쓰기·펜으로 쓰기나 태블릿 시험에서 답한 단어가 복습 상자에 들어가요(틀리면 1칸, 맞으면 2칸). 그다음부터 날짜에 맞춰 여기에 다시 나와요." })
         ]));
         return;
@@ -148,7 +154,7 @@
       if (plan.next) nextText = "다음: " + (WT.store.daysBetween(plan.today, plan.next.date) === 1 ? "내일" : fmtDay(plan.next.date + "T00:00:00")) + " " + plan.next.n + "개";
       var due = plan.due.length;
       var head = due
-        ? [el("b", { text: "🔁 오늘의 복습" + who }), el("span", { "class": "rcount", id: "reviewCount", text: due + "개" })]
+        ? [el("b", { text: "🔁 오늘의 복습" + who })] // 개수는 「복습 시작 (n개)」 버튼에 있다
         : [el("b", { "class": plan.doneToday ? "ok" : "", text: (plan.doneToday ? "✅ 오늘 복습 끝!" : "🔁 오늘의 복습") + who }), nextText ? el("span", { "class": "rcount ok", text: nextText }) : null];
       var card = el("div", { "class": "card rcard" + (due ? "" : " rest"), "data-owner": owner }, [el("div", { "class": "rhead" }, head)]);
       var sub = due ? "지난 단원 단어가 날짜에 맞춰 다시 나와요" : plan.doneToday ? "" : "오늘은 복습할 단어가 없어요";
@@ -157,7 +163,7 @@
       if (sub) card.appendChild(el("div", { "class": "rsub", text: sub }));
       card.appendChild(el("div", { "class": "rboxes" }, [1, 2, 3, 4, 5].map(function (b) {
         return el("div", { "class": "rbox" + (dueB[b] ? " due" : ""), "data-b": String(b) }, [
-          el("b", { text: String(plan.counts[b]) }), el("span", { text: b + "칸" }), el("small", { text: ["", "매일", "2일", "4일", "1주", "2주"][b] })
+          el("b", { text: String(plan.counts[b]) }), el("span", { text: b + "칸" })
         ]);
       })));
       if (due) {
@@ -226,7 +232,7 @@
         el("span", { "class": "ki", text: KIND[kind].icon }),
         el("span", { text: KIND[kind].name }),
         el("span", { "class": "kday", text: KIND[kind].day }),
-        el("span", { "class": "kn", text: mine.length ? mine.length + "개" : "모두 시험 끝" }),
+        mine.length ? null : el("span", { "class": "kn", text: "모두 시험 끝" }), // 개수는 줄을 보면 알 수 있어 빼고, 모두 끝났을 때만 알린다
         cum ? el("button", { type: "button", "class": "cumbtn", "data-kind": kind, text: "📚 누적 시험지", onclick: function () { openCumulative(kind); } }) : null
       ]));
       mine.forEach(function (it) { box.appendChild(lessonCard(it)); });
@@ -262,6 +268,20 @@
     if (it.kind === "word") return String(it.data.lesson);
     var nums = String(it.data.title || "").match(/\d+/g);
     return nums ? nums.join("·") : "?";
+  }
+
+  // 선 아이콘(Lucide, ISC 라이선스). 글자 없이 그림만 넣는다(읽기 프로그램은 버튼 글자·aria-label 을 읽음).
+  var ICONS = {
+    book: '<path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/>',
+    sheet: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h8"/><path d="M8 17h5"/>',
+    more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'
+  };
+  function icon(name) {
+    var s = document.createElement("span");
+    s.className = "ic";
+    s.setAttribute("aria-hidden", "true");
+    s.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' + ICONS[name] + "</svg>";
+    return s;
   }
 
   // 단원 한 줄(A안): [번호 상자] 이름·상태 [외우기][시험지 만들기][⋯]. ⋯ 이나 이름을 누르면 나머지 버튼이 펼쳐진다.
@@ -322,7 +342,7 @@
       parent
     ]);
     exp.hidden = !open;
-    var more = el("button", { type: "button", "class": "lmore", "aria-label": "더 보기", "aria-expanded": open ? "true" : "false", text: "⋯", onclick: toggle });
+    var more = el("button", { type: "button", "class": "lmore", "aria-label": "더 보기", "aria-expanded": open ? "true" : "false", onclick: toggle }, [icon("more")]);
     card = el("div", { "class": "card lesson k-" + it.kind + (doneAt ? " done" : "") + (open ? " open" : ""), "data-id": it.id }, [
       el("div", { "class": "lrow" }, [
         el("div", { "class": "lnum", "aria-hidden": "true" }, [el("small", { text: it.kind === "word" ? "Lesson" : "Chunk" }), el("b", { text: lessonNo(it) })]),
@@ -343,9 +363,9 @@
           ])
         ]),
         el("div", { "class": "lacts" }, [
-          // 진한 버튼은 「외우기」 하나만, 「시험지 만들기」는 테두리 버튼
-          el("button", { type: "button", "class": "primary", "data-b": "study", text: "외우기", onclick: function () { study("all"); } }),
-          el("button", { type: "button", "data-b": "make", text: "시험지 만들기", onclick: function () { openMaker(it.id); } }),
+          // B안: 테두리 없이 옅은 색 바탕. 외우기는 테마 색, 시험지는 회색. 그림은 선 아이콘(Lucide).
+          el("button", { type: "button", "data-b": "study", "aria-label": "외우기", onclick: function () { study("all"); } }, [icon("book"), "외우기"]),
+          el("button", { type: "button", "data-b": "make", "aria-label": "시험지 만들기", onclick: function () { openMaker(it.id); } }, [icon("sheet"), "시험지"]),
           more
         ])
       ]),

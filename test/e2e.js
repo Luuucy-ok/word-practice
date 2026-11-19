@@ -91,7 +91,7 @@ function getJson(url) {
 
   // 시험지 만들기: 한선 단어 L7 (연습 페이지 문장만)
   async function openMaker(re) {
-    await ev("(function(){var cards=Array.from(document.querySelectorAll('#lessonList .card'));var c=cards.filter(function(x){return re.test(x.textContent)})[0];Array.from(c.querySelectorAll('button')).filter(function(b){return b.textContent==='시험지 만들기'})[0].click();})()".replace("re.test", "new RegExp(" + JSON.stringify(re.source) + "," + JSON.stringify(re.flags) + ").test"));
+    await ev("(function(){var cards=Array.from(document.querySelectorAll('#lessonList .card'));var c=cards.filter(function(x){return re.test(x.textContent)})[0];Array.from(c.querySelectorAll('button')).filter(function(b){return b.getAttribute('data-b')==='make'})[0].click();})()".replace("re.test", "new RegExp(" + JSON.stringify(re.source) + "," + JSON.stringify(re.flags) + ").test"));
     await sleep(700);
   }
   // 단원 줄은 이름(숨긴 글자)이 아이 이름보다 앞에 오고, 아이 이름·부모님용은 숨기거나 접으므로 textContent 로 찾는다.

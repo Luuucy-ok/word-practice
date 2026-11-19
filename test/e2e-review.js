@@ -78,7 +78,7 @@ var B5 = load(/^B_단어_TrackA-Book3_L05/), B6 = load(/^B_단어_TrackA-Book3_L
   var id5 = await idOf("/아이 B.*L5/"), id6 = await idOf("/아이 B.*L6/"), idc = await idOf("/^chunk/");
 
   // 1) 빈 상자
-  check(/오늘의 복습/.test(await T("#reviewBox")) && /아직 상자가 비어 있어요/.test(await T("#reviewBox")), "상자가 비면 「🔁 오늘의 복습 · 아직 상자가 비어 있어요」(접힌 안내)");
+  check(/오늘의 복습/.test(await T("#reviewTop")) && /아직 비어 있어요/.test(await T("#reviewTop")) && !(await T("#reviewBox")), "상자가 비면 맨 위 줄(스티커·학원 점수 옆)에 작은 「🔁 오늘의 복습 · 아직 비어 있어요」 칸");
   check(!(await ev("!!document.getElementById('btnReviewStart')")), "빈 상자에는 「복습 시작」 버튼이 없음");
   await shot("r1_빈상자");
 
@@ -121,7 +121,7 @@ var B5 = load(/^B_단어_TrackA-Book3_L05/), B6 = load(/^B_단어_TrackA-Book3_L
   // 4) 날짜가 되면 오늘의 복습
   await makeDue();
   await open();
-  check(/🔁 오늘의 복습/.test(await T("#reviewBox")) && (await T("#reviewCount")) === "20개" && /복습 시작 \(20개\)/.test(await T("#btnReviewStart")), "날짜가 된 항목 20개: 「🔁 오늘의 복습 20개」, 「복습 시작 (20개)」");
+  check(/🔁 오늘의 복습/.test(await T("#reviewBox")) && !(await ev("!!document.getElementById('reviewCount')")) && /복습 시작 \(20개\)/.test(await T("#btnReviewStart")) && !(await T("#reviewTop")), "날짜가 된 항목 20개: 큰 카드 「복습 시작 (20개)」(개수 배지는 버튼과 겹쳐서 뺌, 맨 위 작은 칸은 없어짐)");
   check((await ev("Array.from(document.querySelectorAll('#reviewBox .rbox.due')).map(function(b){return b.getAttribute('data-b')}).join(',')")) === "1,2", "오늘 볼 칸(1칸·2칸)이 칠해짐");
   await shot("r2_오늘의복습");
   await click("#btnReviewStart");
@@ -164,7 +164,7 @@ var B5 = load(/^B_단어_TrackA-Book3_L05/), B6 = load(/^B_단어_TrackA-Book3_L
   await ev("localStorage.removeItem('wp.boxday.v1')");
   await ev("(function(){var o={};o['v|'+" + JSON.stringify(BC.vocab[0].word) + "]=true;WT.store.boxEnter(" + JSON.stringify(idc) + ",o);var b=JSON.parse(localStorage.getItem('wp.box.v1'));b[" + JSON.stringify(idc) + "]['v|'+" + JSON.stringify(BC.vocab[0].word) + "]={b:5,due:'2000-01-01',at:new Date().toISOString()};localStorage.setItem('wp.box.v1',JSON.stringify(b))})()");
   await open();
-  check((await T("#reviewCount")) === "1개", "5칸 chunk 항목 1개가 오늘의 복습에(오늘 복습한 단어는 날짜가 아직 안 됨)");
+  check(/복습 시작 \(1개\)/.test(await T("#btnReviewStart")), "5칸 chunk 항목 1개가 오늘의 복습에(오늘 복습한 단어는 날짜가 아직 안 됨)");
   await click("#btnReviewStart");
   check(/5칸에서 온 Key Vocabulary/.test(await T("#reviewFrom")) && /[가-힣]/.test(await ev("document.querySelector('#studyCard .fmean').textContent")), "chunk 문제는 「5칸에서 온 Key Vocabulary」, 한글 뜻은 그대로 보임");
   await answer(true);

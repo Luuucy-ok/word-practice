@@ -145,7 +145,7 @@ Bx.sentence_sources = ["practice", "book"];
 
   // 5) 보통 단원을 다시 열면 원래대로
   await ev("document.querySelector('#tabs button[data-tab=lessons]').click()");
-  await ev("(function(){var c=Array.from(document.querySelectorAll('#lessonList .card')).filter(function(x){return x.textContent.indexOf('Lesson 6')>=0})[0];Array.from(c.querySelectorAll('button')).filter(function(b){return b.textContent==='시험지 만들기'})[0].click()})()");
+  await ev("(function(){var c=Array.from(document.querySelectorAll('#lessonList .card')).filter(function(x){return x.textContent.indexOf('Lesson 6')>=0})[0];Array.from(c.querySelectorAll('button')).filter(function(b){return b.getAttribute('data-b')==='make'})[0].click()})()");
   await sleep(500);
   check(!(await ev("document.querySelector('.seg[data-for=wMode]').hidden")) && !(await ev("document.getElementById('btnWeakEdit').hidden")) && !/누적/.test(await T("#makeTitle")), "보통 단원을 열면 종류 고르기 등이 다시 보이고 누적이 아님");
   await shot("c4_단원화면");
