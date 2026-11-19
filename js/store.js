@@ -267,6 +267,18 @@
     return n;
   }
 
+  // 학원 시험에서 틀린 항목: 어느 칸에 있든(없어도) 1칸으로, 오늘 복습에 바로 나오게 한다. 바꾼 개수를 돌려준다.
+  function boxMiss(id, keys) {
+    if (!keys || !keys.length) return 0;
+    var all = boxAll();
+    var m = isObj(all[id]) ? all[id] : {};
+    var t = today(), now = new Date().toISOString();
+    keys.forEach(function (key) { m[key] = { b: 1, due: t, at: now }; });
+    all[id] = m;
+    saveBox(all);
+    return keys.length;
+  }
+
   // 오늘의 복습에서 답한 결과로 칸을 옮긴다. { from, to, due } 를 돌려준다(to 가 6 이면 졸업).
   function boxAnswer(id, key, ok) {
     var all = boxAll();
@@ -565,7 +577,7 @@
     importText: importText, exportAll: exportAll, isPersistent: function () { return persistent; },
     weakItems: weakItems, isWeak: isWeak, setWeak: setWeak, clearWeak: clearWeak, weakCount: weakCount, withWeak: withWeak,
     applyGrading: applyGrading, addResult: addResult, resultsFor: resultsFor, CLEAR_AFTER: CLEAR_AFTER,
-    boxEnter: boxEnter, boxAnswer: boxAnswer, boxOf: boxOf, boxEntries: boxEntries, reviewPlan: reviewPlan, reviewDayAdd: reviewDayAdd, mergeBox: mergeBox,
+    boxEnter: boxEnter, boxAnswer: boxAnswer, boxMiss: boxMiss, boxOf: boxOf, boxEntries: boxEntries, reviewPlan: reviewPlan, reviewDayAdd: reviewDayAdd, mergeBox: mergeBox,
     today: today, daysBetween: daysBetween, BOX_DAYS: BOX_DAYS, BOX_GRAD: BOX_GRAD, REVIEW_MAX: REVIEW_MAX,
     _shiftDays: function (n) { dayShift = n; }, // 점검용
     setFix: setFix, fixesFor: fixesFor, fixAt: fixAt, fixesAll: fixesAll, clearFixes: clearFixes, pruneFixes: pruneFixes, fixesText: fixesText, valueAt: valueAt,

@@ -207,7 +207,7 @@ h2.kindhead .kn{margin-left:auto;font-size:13px;color:var(--sub);font-weight:600
 .chip.ac{background:var(--ok-bg);color:var(--ok)}
 .chip.tab{background:var(--bg);color:var(--sub);border:1px solid var(--line)}
 .chip.done{background:var(--ok-bg);color:var(--ok)}
-.chip.none{color:var(--sub);background:var(--bg);border:1px solid var(--line)} /* 다른 상태 칩과 같은 알약 모양 */
+.chip.none{color:var(--sub);font-weight:400;padding-left:0} /* 아직 기록이 없다는 안내라서 알약 없이 글자만(사용자 선택) */
 .lacts{flex:none;display:flex;align-items:center;gap:8px}
 /* 단원 줄 버튼(B안): 테두리·그림자 없이 옅은 색 바탕. 외우기는 테마 색(--tint), 시험지는 회색(--soft). ⋯ 은 상자 없이 아이콘만 */
 .lesson .lacts button{min-height:44px;padding:0 14px;gap:6px;font-size:15px;font-weight:800;border:0;border-radius:12px;box-shadow:none;transform:none}
@@ -241,9 +241,18 @@ html[data-theme] button.chip{box-shadow:none;border-radius:999px;background:var(
 .topline .card{margin:0;padding:8px 12px;border-radius:14px}
 .topline .card > summary{min-height:36px;font-size:14px}
 .topline .card[open]{flex-basis:100%}
+/* 펼친 칸(스티커 판·학원 점수 표·복습 안내)은 맨 위 줄 전체 폭을 쓴다. 표가 더 넓으면 칸 안에서 옆으로 밀어 본다 */
+.topline > div:has(> .card[open]){flex-basis:100%}
+.topline .acboard[open]{overflow-x:auto}
+.topline .acboard .acavg{margin:6px 0}
 .topline .stickers .srecent{font-size:18px}
 .topline .srecent.empty,.topline .acboard .srecent,.topline .rcard .srecent{font-size:12px}
 .topline > div:empty{display:none}
+/* 맨 위 세 칸(스티커·학원 점수·복습)은 접혀 있을 때 높이를 똑같이: 한 줄로 두고 넘치는 설명은 … 으로 줄인다 */
+.topline{align-items:flex-start}
+.topline .card:not([open]) > summary{height:36px;justify-content:space-between;gap:10px;flex-wrap:nowrap;overflow:hidden}
+.topline .card > summary .stitle{flex:none;white-space:nowrap}
+.topline .card:not([open]) > summary .srecent{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:36px}
 
 /* 시험지 탭 위쪽(짧게): 제목, 버튼 한 줄, 종류 고르기, 더 설정 */
 .makecard{padding:12px 14px}
@@ -436,7 +445,8 @@ html[data-theme]{--rv:var(--brand);--rv-bg:var(--bg);--rv-line:var(--line)}
 .rcard{border:2px solid var(--rv);border-radius:16px;padding:10px 12px}
 .rcard.rest{border-color:var(--line);border-width:1px}
 .rcard.empty{border:1px solid var(--line);padding:8px 12px;border-radius:14px}
-.rcard.empty > summary{min-height:36px;font-size:14px;display:flex;gap:8px;align-items:center}
+.rcard.empty > summary{min-height:36px;height:36px;font-size:14px;display:flex;gap:8px;align-items:center}
+.rcard.empty[open] > summary{height:auto}
 .rcard.empty .srecent{font-size:12px;color:var(--sub);font-weight:400}
 .rhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .rhead b{font-size:17px;color:var(--rv)}

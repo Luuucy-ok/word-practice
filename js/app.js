@@ -98,7 +98,7 @@
     if (!codes.length) codes = ["_"];
     codes.forEach(function (code) {
       var list = WT.fun.stickers(code);
-      var who = code === "_" ? "" : childLabel(code) + " ";
+      var who = code === "_" || codes.length === 1 ? "" : childLabel(code) + " "; // 한 아이 것만 보이면 이름은 빼서 칸을 짧게
       var recent = list.slice(-6).reverse().map(function (x) { return x.s; }).join("");
       var card = el("details", { "class": "card stickers", "data-code": code }, [
         el("summary", {}, [
@@ -122,27 +122,26 @@
 
   // 단원 화면 위의 「오늘의 복습」(5칸 상자). 지금 보이는 아이마다 카드 하나.
   function renderReview() {
-    var box = $("reviewBox"), top = $("reviewTop");
+    var box = $("reviewBox");
     if (!box) return;
     clear(box);
-    if (top) clear(top);
     var lessons = WT.store.list();
     var mc = multiChild();
     if (mc) lessons = lessons.filter(function (x) { return x.data.owner === WT.sync.CHILD_OWNER[mc.active]; });
     if (!lessons.length) return;
     var owners = [];
     lessons.forEach(function (x) { if (owners.indexOf(x.data.owner) < 0) owners.push(x.data.owner); });
-    // 상자가 빈 아이가 여럿이면 맨 위 줄에 작은 칸 하나로 합친다
+    // 상자가 빈 아이가 여럿이면 칸 하나로 합친다
     var emptyN = owners.filter(function (o) { return !WT.store.reviewPlan(lessons, o).total; }).length, emptyShown = false;
     owners.sort().forEach(function (owner) {
       var plan = WT.store.reviewPlan(lessons, owner);
       var who = owners.length > 1 ? " · " + ownerLabel(owner) : "";
       var ctx = function (practice) { return { who: ownerLabel(owner), owner: owner, practice: practice, onClose: function () { renderLessons(); updateWeakControls(); } }; };
       if (!plan.total) {
-        // 상자가 비었으면 맨 위 줄(스티커·학원 점수 옆)의 작은 칸으로 둔다
+        // 상자가 비었으면 접힌 한 줄 칸(맨 위 스티커·학원 점수 줄 아래, 전체 폭)
         if (emptyShown) return;
         emptyShown = true;
-        (top || box).appendChild(el("details", { "class": "card rcard empty", "data-owner": emptyN > 1 ? "" : owner }, [
+        box.appendChild(el("details", { "class": "card rcard empty", "data-owner": emptyN > 1 ? "" : owner }, [
           el("summary", {}, [el("span", { "class": "stitle", text: "🔁 오늘의 복습" + (emptyN > 1 ? "" : who) }), el("span", { "class": "srecent", text: "아직 비어 있어요" })]),
           el("p", { "class": "hint", style: "margin-top:8px", text: "외우기의 듣고 쓰기·첫 글자 힌트 쓰기·펜으로 쓰기나 태블릿 시험에서 답한 단어가 복습 상자에 들어가요(틀리면 1칸, 맞으면 2칸). 그다음부터 날짜에 맞춰 여기에 다시 나와요." })
         ]));
@@ -589,6 +588,9 @@
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date.value)) { msg(out, "err", "시험 본 날을 골라 주세요."); return; }
       var keys = Array.prototype.map.call(body.querySelectorAll("input[type=checkbox]:checked"), function (c) { return c.getAttribute("data-key"); });
       keys.forEach(function (k) { WT.store.setWeak(id, k, true); }); // 틀린 것은 약한 목록에도 넣는다(체크를 풀어도 약한 목록에서는 빼지 않음)
+      // 학원 시험에서 새로 틀린 것은 복습 상자 1칸으로(오늘 복습에 바로 나옴). 같은 기록을 다시 저장해도 이미 넣은 것은 다시 내리지 않는다.
+      var before = old && Array.isArray(old.wrong) ? old.wrong : [];
+      WT.store.boxMiss(id, keys.filter(function (k) { return before.indexOf(k) < 0; }));
       var full = s === t;
       var trophy = !!(old && old.trophy);
       var got = null;
@@ -643,6 +645,13 @@
         return (kind === "word" ? "단어 시험 평균 " : "Chunk Quiz 평균 ") + (Math.round(v * 10) / 10) + "/" + full + "점 (" + xs.length + "번)";
       };
       var avgs = [avg("word"), avg("chunk")].filter(Boolean);
+      // 접힌 칸에는 짧게(예: 단어 90점 · Chunk 18점), 자세한 평균은 펼친 표 위에
+      var shortAvg = ["word", "chunk"].map(function (kind) {
+        var xs = mine.filter(function (r) { return r.kind === kind; });
+        if (!xs.length) return null;
+        var v = xs.reduce(function (n, r) { return n + r.score / r.total * FULL[kind]; }, 0) / xs.length;
+        return (kind === "word" ? "단어 " : "Chunk ") + (Math.round(v * 10) / 10) + "점";
+      }).filter(Boolean);
       var table = el("table", { "class": "ct actable" }, [
         el("thead", {}, [el("tr", {}, [el("th", { text: "날짜" }), el("th", { text: "단원" }), el("th", { text: "점수" }), el("th", { text: "메모" })])]),
         el("tbody", {}, mine.map(function (r) {
@@ -655,7 +664,8 @@
         }))
       ]);
       box.appendChild(el("details", { "class": "card acboard", "data-owner": owner }, [
-        el("summary", {}, [el("span", { "class": "stitle", text: "📊 " + ownerLabel(owner) + " 학원 점수 " + mine.length + "개" }), el("span", { "class": "srecent empty", text: avgs.join(" · ") })]),
+        el("summary", {}, [el("span", { "class": "stitle", text: "📊 " + (owners.length > 1 ? ownerLabel(owner) + " " : "") + "학원 점수 " + mine.length + "개" }), el("span", { "class": "srecent empty", text: shortAvg.join(" · ") })]),
+        el("div", { "class": "hint acavg", text: avgs.join(" · ") }),
         table
       ]));
     });

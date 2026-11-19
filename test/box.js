@@ -58,6 +58,12 @@ S.boxAnswer(L1.id, "whistle", true); S.boxAnswer(L1.id, "whistle", true); // 4�
 mv = S.boxAnswer(L1.id, "whistle", false);
 check(mv.from === 4 && mv.to === 1 && mv.due === plus(1), "4칸에서 틀리면 1칸으로, 내일");
 
+// 2-1) 학원 시험에서 틀린 항목: 어느 칸이든 1칸, 오늘 복습
+S.boxEnter(L1.id, { gentle: true });
+S.boxAnswer(L1.id, "gentle", true); // 3칸
+check(S.boxMiss(L1.id, ["gentle", "orbit"]) === 2 && S.boxOf(L1.id, "gentle").b === 1 && S.boxOf(L1.id, "gentle").due === t0 && S.boxOf(L1.id, "orbit").b === 1 && S.boxOf(L1.id, "orbit").due === t0, "학원 시험에서 틀린 것은 3칸에 있던 것도, 상자에 없던 것도 1칸·오늘 복습");
+var mem2 = JSON.parse(mem.get("wp.box.v1")); delete mem2[L1.id].gentle; delete mem2[L1.id].orbit; mem.set("wp.box.v1", JSON.stringify(mem2)); // 아래 점검 숫자를 흐리지 않게 되돌림
+
 // 3) 오늘의 복습 계획
 var p = S.reviewPlan(lessons, "아이 A");
 check(p.total === 3 && p.counts[1] === 2 && p.grad === 1 && p.due.length === 0, "오늘 넣은 항목은 오늘 복습에 나오지 않음(1칸 2개, 졸업 1개)");

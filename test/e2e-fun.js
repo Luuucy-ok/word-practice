@@ -313,6 +313,9 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   await click("#btnAcSave");
   check((await ev("document.getElementById('dlg').hidden")) && /📝 학원 점수 90\/100/.test(await cardOf(wTitle)) && /틀린 것 1개 · 대문자 실수/.test(await cardOf(wTitle)), "저장하면 창이 닫히고 단원 카드에 「📝 학원 점수 90/100 … 틀린 것 1개 · 대문자 실수」");
   check(await ev("WT.store.isWeak(WT.store.list().filter(function(x){return x.kind==='word'})[0].id," + JSON.stringify(wk) + ")"), "체크한 틀린 것은 약한 목록에도 들어감");
+  var wid = "WT.store.list().filter(function(x){return x.kind==='word'})[0].id";
+  check(await ev("(function(){var e=WT.store.boxOf(" + wid + "," + JSON.stringify(wk) + ");return !!e&&e.b===1&&e.due===WT.store.today()})()"), "학원 시험에서 틀린 것은 복습 상자 1칸으로, 오늘 복습에 바로 나옴");
+  check(/복습 시작 \(1개\)/.test(await T("#reviewBox")), "단원 화면 「오늘의 복습」에 「복습 시작 (1개)」");
   check(/학원 점수 1개/.test(await ev("document.getElementById('academyBox').textContent")) && /단어 시험 평균 90\/100점 \(1번\)/.test(await ev("document.getElementById('academyBox').textContent")), "단원 화면 위 「학원 점수 기록」에 1개, 단어 시험 평균 90/100점");
   var bStick = await stickerN("B");
   await acOpen(wTitle);

@@ -78,7 +78,7 @@ var B5 = load(/^B_단어_TrackA-Book3_L05/), B6 = load(/^B_단어_TrackA-Book3_L
   var id5 = await idOf("/아이 B.*L5/"), id6 = await idOf("/아이 B.*L6/"), idc = await idOf("/^chunk/");
 
   // 1) 빈 상자
-  check(/오늘의 복습/.test(await T("#reviewTop")) && /아직 비어 있어요/.test(await T("#reviewTop")) && !(await T("#reviewBox")), "상자가 비면 맨 위 줄(스티커·학원 점수 옆)에 작은 「🔁 오늘의 복습 · 아직 비어 있어요」 칸");
+  check(/오늘의 복습/.test(await T("#reviewBox")) && /아직 비어 있어요/.test(await T("#reviewBox")) && !(await ev("!!document.querySelector('.topline .rcard')")), "상자가 비어도 맨 위 줄(스티커·학원 점수)이 아니라 그 아래 한 줄 칸 「🔁 오늘의 복습 · 아직 비어 있어요」");
   check(!(await ev("!!document.getElementById('btnReviewStart')")), "빈 상자에는 「복습 시작」 버튼이 없음");
   await shot("r1_빈상자");
 
@@ -121,7 +121,7 @@ var B5 = load(/^B_단어_TrackA-Book3_L05/), B6 = load(/^B_단어_TrackA-Book3_L
   // 4) 날짜가 되면 오늘의 복습
   await makeDue();
   await open();
-  check(/🔁 오늘의 복습/.test(await T("#reviewBox")) && !(await ev("!!document.getElementById('reviewCount')")) && /복습 시작 \(20개\)/.test(await T("#btnReviewStart")) && !(await T("#reviewTop")), "날짜가 된 항목 20개: 큰 카드 「복습 시작 (20개)」(개수 배지는 버튼과 겹쳐서 뺌, 맨 위 작은 칸은 없어짐)");
+  check(/🔁 오늘의 복습/.test(await T("#reviewBox")) && !(await ev("!!document.getElementById('reviewCount')")) && /복습 시작 \(20개\)/.test(await T("#btnReviewStart")), "날짜가 된 항목 20개: 큰 카드 「복습 시작 (20개)」(개수 배지는 버튼과 겹쳐서 뺌)");
   check((await ev("Array.from(document.querySelectorAll('#reviewBox .rbox.due')).map(function(b){return b.getAttribute('data-b')}).join(',')")) === "1,2", "오늘 볼 칸(1칸·2칸)이 칠해짐");
   await shot("r2_오늘의복습");
   await click("#btnReviewStart");

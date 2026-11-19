@@ -1,5 +1,5 @@
 /* 오프라인에서도 열리게 앱 파일을 저장해 둔다. 인터넷이 되면 항상 새 파일을 먼저 받는다. */
-var CACHE = "word-practice-v23";
+var CACHE = "word-practice-v24";
 var FILES = ["./", "index.html", "css/app.css", "fonts/NanumSquareRoundR.woff2", "fonts/NanumSquareRoundB.woff2", "fonts/NanumSquareRoundEB.woff2", "fonts/nunito-800.woff2", "js/util.js", "js/word.js", "js/chunk.js", "js/store.js", "js/fun.js", "js/kbd.js", "js/sync.js", "js/quiz.js", "js/solve.js", "js/study.js", "js/app.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", function (e) {
