@@ -1,4 +1,6 @@
-Copyright 2018 The Jua Project Authors
+NanumSquareRound (Regular, Bold, ExtraBold)
+Copyright (c) 2017 NAVER Corporation. Font designed by Sandoll Communications Inc.
+The font files in this folder are the web font files distributed by NAVER (hangeul.pstatic.net), used without modification.
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:

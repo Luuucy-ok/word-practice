@@ -150,11 +150,12 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   }
   await open();
   check((await theme()) === "star", "새로 고침해도 고른 테마가 남음");
+  await ev("Promise.all([400,700,800].map(function(w){return document.fonts.load(w+' 16px NanumSquareRound','가A')}))");
   await ev("document.fonts.ready");
   await sleep(300);
-  var fonts = await ev("(function(){return {tab:getComputedStyle(document.querySelector('#tabs button')).fontFamily,body:getComputedStyle(document.body).fontFamily,jua:document.fonts.check('16px Jua'),nunito:document.fonts.check('800 16px Nunito')}})()");
+  var fonts = await ev("(function(){return {tab:getComputedStyle(document.querySelector('#tabs button')).fontFamily,body:getComputedStyle(document.body).fontFamily,nsr:[400,700,800].every(function(w){return document.fonts.check(w+' 16px NanumSquareRound')}),btn:getComputedStyle(document.querySelector('#lessonList button[data-b=study]')).fontFamily+'/'+getComputedStyle(document.querySelector('#lessonList button[data-b=study]')).fontWeight,nunito:document.fonts.check('800 16px Nunito')}})()");
   var h1f = await ev("getComputedStyle(document.querySelector('.bar h1')).fontFamily");
-  check(/Jua/.test(h1f) && !/Jua/.test(fonts.tab) && !/Jua/.test(fonts.body) && fonts.jua, "둥근 글꼴(Jua)은 제목에만, 탭·버튼·본문은 읽기 쉬운 기본 글꼴(글꼴 파일 로드됨)");
+  check(/NanumSquareRound/.test(h1f) && /NanumSquareRound/.test(fonts.tab) && /NanumSquareRound/.test(fonts.body) && /NanumSquareRound.*\/700/.test(fonts.btn) && fonts.nsr, "테마에서는 제목·탭·본문·버튼 모두 나눔스퀘어라운드(버튼 굵게 700, 글꼴 파일 3개 로드됨)");
   check(await ev("getComputedStyle(document.querySelector('.bar h1'),'::after').content.indexOf('✨')>=0"), "제목 옆에 테마 그림(✨)");
 
   // 3) 외우기: 진행 표시, 맞힘·틀림 효과음과 색종이, 끝나면 스티커
@@ -216,7 +217,7 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   var bBefore = await stickerN("B");
   await clickCard(wTitle, "시험지 만들기"); await toRegular();
   await sleep(500);
-  check(!(await ev("document.getElementById('sheet').srcdoc.indexOf('data-theme')>=0")) && !/Jua/.test(await ev("document.getElementById('sheet').srcdoc")), "인쇄 시험지에는 꾸미기(테마, Jua 글꼴)가 들어가지 않음");
+  check(!(await ev("document.getElementById('sheet').srcdoc.indexOf('data-theme')>=0")) && !/NanumSquareRound/.test(await ev("document.getElementById('sheet').srcdoc")), "인쇄 시험지에는 꾸미기(테마, 나눔스퀘어라운드 글꼴)가 들어가지 않음");
   await ev("document.getElementById('btnSolve').click()");
   await sleep(300);
   await ev("(function(){var q=WT.solve._current().quiz;q.items.forEach(function(it,i){var card=document.querySelector('#solveBody .qcard[data-i=\"'+i+'\"]');" +

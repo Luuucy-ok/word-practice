@@ -178,7 +178,7 @@ button.k-space{flex:4 1 0;max-width:none;font-size:15px}
 button.k-enter{flex:2 1 0;max-width:150px;font-size:16px;background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
 body.kbd-open .solvewrap{padding-bottom:280px}
 html[data-theme] button.key{font-family:"Nunito","Malgun Gothic",sans-serif;font-weight:800;box-shadow:none;transform:none}
-html[data-theme] button.k-space,html[data-theme] button.k-enter,html[data-theme] button.k-shift,html[data-theme] button.k-back,html[data-theme] button.k-hide{font-family:"Jua","Malgun Gothic",sans-serif;font-weight:400}
+html[data-theme] button.k-space,html[data-theme] button.k-enter,html[data-theme] button.k-shift,html[data-theme] button.k-back,html[data-theme] button.k-hide{font-family:"NanumSquareRound","Malgun Gothic",sans-serif;font-weight:700}
 html[data-theme] button.key{border-radius:12px;background:var(--bg);color:var(--ink);border:1px solid var(--line)}
 html[data-theme] button.k-enter,html[data-theme] button.k-shift.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
 
@@ -224,7 +224,7 @@ button[data-b="weak"]::before{content:"🔁"}
 .parentbox .meta{margin-bottom:8px}
 .parenthead{margin:30px 4px 10px;padding-top:14px;border-top:2px dashed var(--line);font-size:14px;color:var(--sub)}
 html[data-theme] .parentbox > summary{font-family:inherit}
-html[data-theme] .lnum b,html[data-theme] .lesson .lname{font-family:"Jua","Malgun Gothic",sans-serif;font-weight:400}
+html[data-theme] .lnum b,html[data-theme] .lesson .lname{font-family:"NanumSquareRound","Malgun Gothic",sans-serif;font-weight:800}
 html[data-theme] .lacts button[data-b="make"]{border:2px solid var(--brand);color:var(--brand);background:var(--card);box-shadow:none}
 @media (max-width:560px){.lrow{flex-wrap:wrap}.lacts{flex-basis:100%;justify-content:flex-end}}
 #lessonList.single .owner{display:none}
@@ -303,7 +303,9 @@ button.donebtn{border-color:var(--ok);color:var(--ok)}
 .donenote button{min-height:36px;padding:0 12px}
 
 /* ===================================================== 꾸미기(공통 부품) */
-@font-face{font-family:"Jua";src:url("../fonts/jua.woff2") format("woff2");font-display:swap}
+@font-face{font-family:"NanumSquareRound";src:url("../fonts/NanumSquareRoundR.woff2") format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"NanumSquareRound";src:url("../fonts/NanumSquareRoundB.woff2") format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"NanumSquareRound";src:url("../fonts/NanumSquareRoundEB.woff2") format("woff2");font-weight:800;font-display:swap}
 @font-face{font-family:"Nunito";src:url("../fonts/nunito-800.woff2") format("woff2");font-weight:800;font-display:swap}
 .prog{display:flex;align-items:center;gap:3px;margin-top:4px}
 .pbar{display:block;width:180px;max-width:50vw;height:9px;border-radius:9px;background:var(--line);overflow:hidden}
@@ -334,9 +336,12 @@ button.themeopt{gap:8px}
 /* ===================================================== 꾸미기 테마(밝은 화면 고정) */
 html[data-theme]{color-scheme:light}
 html[data-theme] .bar h1::after{content:var(--ticon,"")}
-html[data-theme] :where(.bar h1,.card h2,.dlghead h2,.sgroup,.score b,.fres,.childbar b,.stitle,.tname,.weakgroup,.qno,.solvebar b,h2.kindhead){font-family:"Jua","Malgun Gothic",sans-serif;font-weight:400}
+html[data-theme] :where(.bar h1,.card h2,.dlghead h2,.sgroup,.score b,.fres,.childbar b,.stitle,.tname,.weakgroup,.qno,.solvebar b,h2.kindhead){font-family:"NanumSquareRound","Malgun Gothic",sans-serif;font-weight:800}
 html[data-theme] .card h2{font-size:19px}
-html[data-theme] .lesson .head,html[data-theme] button.act b,html[data-theme] button b{font-weight:400}
+/* 꾸미기 테마의 한글은 나눔스퀘어라운드: 본문 400, 버튼·칩 700, 제목 800(영어 답 글자: 입력칸·글자 조각·보기·자판은 고정폭·Nunito 규칙이 우선) */
+html[data-theme] body{font-family:"NanumSquareRound","Malgun Gothic",sans-serif}
+html[data-theme] :where(button,.chip,.chipcheck,.rhead b,.rcount,.rbox,.bstat,.bmove){font-family:"NanumSquareRound","Malgun Gothic",sans-serif;font-weight:700}
+html[data-theme] .chip{font-size:13px}
 html[data-theme] button.tile,html[data-theme] .opts button.opt,html[data-theme] .fphrase b{font-family:"Nunito","Malgun Gothic",sans-serif;font-weight:800}
 html[data-theme] .card{border-radius:20px}
 html[data-theme] .flash{border-radius:24px}
