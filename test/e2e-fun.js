@@ -316,6 +316,28 @@ var FAKE_SPEECH = "(function(){window.__spoken=[];var v={name:'Fake English',lan
   var wid = "WT.store.list().filter(function(x){return x.kind==='word'})[0].id";
   check(await ev("(function(){var e=WT.store.boxOf(" + wid + "," + JSON.stringify(wk) + ");return !!e&&e.b===1&&e.due===WT.store.today()})()"), "학원 시험에서 틀린 것은 복습 상자 1칸으로, 오늘 복습에 바로 나옴");
   check(/복습 시작 \(1개\)/.test(await T("#reviewBox")), "단원 화면 「오늘의 복습」에 「복습 시작 (1개)」");
+  // 이 기능 전에 적은 기록(boxed 없음)을 다시 저장하면 체크된 것이 복습으로 들어감
+  var k2 = await ev("WT.store.weakItems(WT.store.list().filter(function(x){return x.kind==='word'})[0].data).map(function(x){return x.key}).filter(function(k){return k!==" + JSON.stringify(wk) + "})[0]");
+  await ev("(function(){var id=" + wid + ";var r=WT.store.academyFor(id);var o=Object.assign({},r,{wrong:[" + JSON.stringify(wk) + "," + JSON.stringify(k2) + "]});delete o.boxed;delete o.at;WT.store.setAcademy(id,o);var b=JSON.parse(localStorage.getItem('wp.box.v1'));delete b[id];localStorage.setItem('wp.box.v1',JSON.stringify(b))})()");
+  await acOpen(wTitle);
+  await click("#btnAcSave");
+  check(await ev("(function(){var id=" + wid + ";return [" + JSON.stringify(wk) + "," + JSON.stringify(k2) + "].every(function(k){var e=WT.store.boxOf(id,k);return e&&e.b===1})})()"), "오늘 업데이트 전에 적은 학원 점수(상자 기록 없음)도 다시 저장하면 체크된 틀린 것이 복습 1칸으로 들어감");
+  // 복습에서 올라간 뒤 같은 기록을 다시 저장해도 다시 1칸으로 내리지 않음
+  await ev("(function(){var id=" + wid + ";WT.store.boxAnswer(id," + JSON.stringify(wk) + ",true);WT.store.boxAnswer(id," + JSON.stringify(wk) + ",true)})()");
+  await acOpen(wTitle);
+  await click("#btnAcSave");
+  check((await ev("WT.store.boxOf(" + wid + "," + JSON.stringify(wk) + ").b")) === 3, "복습에서 올라간 단어는 같은 학원 점수를 다시 저장해도 그 칸 그대로(3칸)");
+  // 「✅ 시험 끝」 날짜는 학원 점수의 시험 본 날을 따름
+  await acOpen(wTitle);
+  await setVal("acDate", "2026-11-10");
+  await click("#btnAcSave");
+  await ev("WT.store.setDone(" + wid + ", true)");
+  await open();
+  check(/✅ 시험 끝 11\/10/.test(await ev("Array.from(document.querySelectorAll('#lessonList .card')).filter(function(c){return c.getAttribute('data-id')===" + wid + "})[0].textContent")), "학원 점수의 시험 본 날을 11/10 으로 바꾸면 단원 줄 「✅ 시험 끝 11/10」");
+  await ev("WT.store.setDone(" + wid + ", false)");
+  await open();
+  var swv = /word-practice-(v\d+)/.exec(fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8"))[1];
+  check(new RegExp("앱 버전 " + swv + " ").test(await ev("document.getElementById('appVer').textContent")), "설정 맨 아래 「앱 버전 " + swv + "」(sw.js 번호와 같음)");
   check(/학원 점수 1개/.test(await ev("document.getElementById('academyBox').textContent")) && /단어 시험 평균 90\/100점 \(1번\)/.test(await ev("document.getElementById('academyBox').textContent")), "단원 화면 위 「학원 점수 기록」에 1개, 단어 시험 평균 90/100점");
   var bStick = await stickerN("B");
   await acOpen(wTitle);

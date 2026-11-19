@@ -4,6 +4,7 @@
   var WT = window.WT;
   var $ = function (id) { return document.getElementById(id); };
   var state = { lessonId: null };
+  var APP_VERSION = "v25"; // sw.js 의 CACHE 번호와 같게 올린다(설정 맨 아래에 보여 태블릿이 새 버전인지 확인)
 
   var SOURCE_LABEL = { practice: "연습 페이지", book: "교재 예문", exam: "지난 시험 문장", "new": "새 문장" };
 
@@ -204,7 +205,7 @@
     // 「시험 끝」으로 표시한 단원은 맨 아래의 접힌 묶음으로 보낸다(최근에 끝낸 것부터).
     var todo = items.filter(function (it) { return !WT.store.doneAt(it.id); });
     var done = items.filter(function (it) { return !!WT.store.doneAt(it.id); })
-      .sort(function (a, b) { return WT.store.doneAt(b.id).localeCompare(WT.store.doneAt(a.id)); });
+      .sort(function (a, b) { return doneDay(b).localeCompare(doneDay(a)); });
     if (state.doneNotice) {
       var nid = state.doneNotice;
       state.doneNotice = null;
@@ -245,6 +246,12 @@
       done.forEach(function (it) { grp.appendChild(lessonCard(it)); });
       box.appendChild(grp);
     }
+  }
+
+  // 「✅ 시험 끝」에 보여 줄 날: 학원 점수를 적었으면 그 시험 본 날, 아니면 「시험 봤어요」를 누른 날
+  function doneDay(it) {
+    var ac = WT.store.academyFor(it.id);
+    return ac && /^\d{4}-\d{2}-\d{2}$/.test(ac.date || "") ? ac.date + "T00:00:00" : (WT.store.doneAt(it.id) || "");
   }
 
   // 단원 종류: 아이가 한눈에 구분하도록 그림·이름·요일·색을 나눈다.
@@ -353,7 +360,7 @@
             el("span", { "class": "owner", text: ownerLabel(d.owner) })
           ]),
           el("div", { "class": "chips" }, [
-            doneAt ? el("span", { "class": "chip done", text: "✅ 시험 끝 " + fmtDay(doneAt) }) : null,
+            doneAt ? el("span", { "class": "chip done", text: "✅ 시험 끝 " + fmtDay(doneDay(it)) }) : null,
             // 틀린 항목이 있으면 누르면 바로 「틀린 것만 외우기」가 열리는 버튼
             weakN ? el("button", { type: "button", "class": "chip weak", "data-r": "review", text: "🔁 틀린 항목 " + weakN + "개", onclick: function (e) { e.stopPropagation(); study("weak"); } }) : null,
             ac ? el("span", { "class": "chip ac", text: "📝 학원 " + scoreText(ac) + (ac.score === ac.total ? " 🏆" : "") }) : null,
@@ -588,14 +595,17 @@
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date.value)) { msg(out, "err", "시험 본 날을 골라 주세요."); return; }
       var keys = Array.prototype.map.call(body.querySelectorAll("input[type=checkbox]:checked"), function (c) { return c.getAttribute("data-key"); });
       keys.forEach(function (k) { WT.store.setWeak(id, k, true); }); // 틀린 것은 약한 목록에도 넣는다(체크를 풀어도 약한 목록에서는 빼지 않음)
-      // 학원 시험에서 새로 틀린 것은 복습 상자 1칸으로(오늘 복습에 바로 나옴). 같은 기록을 다시 저장해도 이미 넣은 것은 다시 내리지 않는다.
-      var before = old && Array.isArray(old.wrong) ? old.wrong : [];
-      WT.store.boxMiss(id, keys.filter(function (k) { return before.indexOf(k) < 0; }));
+      // 학원 시험에서 틀린 것은 복습 상자 1칸으로(오늘 복습에 바로 나옴). 기록마다 이미 상자에 보낸 항목(boxed)을 기억해서
+      // 같은 기록을 다시 저장해도 다시 내리지 않는다. 이 기능 전에 적은 기록은 boxed 가 없으므로 체크된 항목을 이번에 보낸다.
+      var boxedBefore = old && Array.isArray(old.boxed) ? old.boxed : [];
+      var toBox = keys.filter(function (k) { return boxedBefore.indexOf(k) < 0; });
+      WT.store.boxMiss(id, toBox);
+      var boxed = boxedBefore.concat(toBox);
       var full = s === t;
       var trophy = !!(old && old.trophy);
       var got = null;
       if (full && !trophy) { got = WT.fun.award(it.data.owner, "학원 시험 만점 · " + lessonTitle(it), "🏆"); trophy = true; }
-      WT.store.setAcademy(id, { date: date.value, score: s, total: t, memo: memo.value.trim().slice(0, 40), wrong: keys,
+      WT.store.setAcademy(id, { date: date.value, score: s, total: t, memo: memo.value.trim().slice(0, 40), wrong: keys, boxed: boxed,
         owner: it.data.owner, title: lessonTitle(it), kind: it.kind, trophy: trophy });
       closeDlg();
       if (got) {
@@ -1424,6 +1434,7 @@
 
   // ---------------------------------------------------------------- 설정
   function initSettings() {
+    $("appVer").textContent = "앱 버전 " + APP_VERSION + " · 새 버전이 안 보이면 앱을 완전히 닫았다가 다시 열어 주세요.";
     var s = WT.store.settings();
     $("nameA").value = s.nameA;
     $("nameB").value = s.nameB;

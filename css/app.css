@@ -478,3 +478,4 @@ button.primary.rstart{background:var(--rv);border-color:var(--rv);color:#fff}
 .blist .u span:last-child{color:var(--ok)}
 .blist .d span:last-child{color:var(--warn)}
 .blist .g span:last-child{color:var(--amber)}
+.appver{margin:18px 2px 0;font-size:12px;color:var(--sub);text-align:center}
