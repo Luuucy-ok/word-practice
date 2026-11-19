@@ -255,11 +255,15 @@ html[data-theme] button.chip{box-shadow:none;border-radius:999px;background:var(
 .topline .card:not([open]) > summary .srecent{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:36px}
 
 /* 시험지 탭 위쪽(짧게): 제목, 버튼 한 줄, 종류 고르기, 더 설정 */
-.makecard{padding:12px 14px}
+.makecard{padding:12px 14px 6px}
+.mkfoot .parentbox.inline,.mkfoot .mkmore,.mkfoot .mkline{margin:0}
 .makecard h2#makeTitle{font-size:18px;margin:0 0 10px}
 .mkacts{gap:8px;margin-bottom:10px}
-.mkacts button{min-height:44px;font-size:15px}
-.mkacts #btnSolve{padding:0 18px}
+/* 시험지 탭 버튼(B안): 단원 줄과 같이 테두리·그림자 없이 옅은 바탕 + 선 아이콘 */
+#makePanel .mkacts button{min-height:44px;padding:0 14px;gap:6px;font-size:15px;font-weight:800;border:0;border-radius:12px;box-shadow:none;transform:none;background:var(--soft);color:var(--ink)}
+#makePanel .mkacts #btnSolve{padding:0 16px;background:var(--tint);color:var(--tint-ink)}
+#makePanel .mkacts button:disabled{opacity:.5;cursor:default}
+#makePanel .mkacts button:active:not(:disabled){filter:brightness(.96)}
 .mkrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--card)}
 .seg button{min-height:40px;border:0;border-radius:0;padding:0 14px;font-size:14px;background:transparent;color:var(--sub);box-shadow:none}
@@ -272,12 +276,17 @@ html[data-theme] .seg button.on{background:var(--brand);color:var(--brand-ink)}
 .chipcheck input{width:18px;height:18px;margin:0}
 .chipcheck:has(input:checked){border-color:var(--brand);color:var(--brand);font-weight:700}
 .chipcheck:has(input:disabled){opacity:.55;cursor:default}
-.mkinfo{margin-top:8px}
+.mkinfo{margin:0}
+/* 아래 줄: 부모님용과 더 설정을 한 줄에 나란히, 펼친 칸은 줄 전체 폭 */
+.mkfoot{display:flex;flex-wrap:wrap;align-items:flex-start;gap:0 18px;margin-top:10px;padding-top:6px;border-top:1px dashed var(--line)}
+.mkfoot > *{flex:0 0 auto}
+.mkfoot > .mkinfo:has(details[open]),.mkfoot > .mkmore[open]{flex-basis:100%}
+.mkfoot .parentbox.inline > summary,.mkfoot .mkmore > summary{min-height:36px;font-size:13px;color:var(--sub);font-weight:600}
 .mkinfo .msg{margin-top:6px}
 .mkline{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:13px;color:var(--sub)}
 .parentbox.inline{border-top:0;padding-top:0}
 .parentbox.inline > summary{min-height:28px}
-.mkmore{margin:8px 0 0}
+.mkmore{margin:0}
 .mkmore > summary{font-size:14px;min-height:36px}
 .mkmore[open]{padding-top:4px}
 

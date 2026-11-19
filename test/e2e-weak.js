@@ -129,7 +129,7 @@ var C = load(/^A_chunk.*L07-08/);
   check(/표시한 것이 없어요/.test(await T("#dlgBody")), "「표시 모두 지우기」가 동작함");
   await ev("document.getElementById('dlgClose').click()");
   await sleep(500);
-  check((await ev("document.getElementById('wWeak').disabled")) && !(await ev("document.getElementById('wWeak').checked")) && /표시한 것이 없어요/.test(await T("#wWeakText")), "표시가 없으면 「약한 단어만」이 잠기고 꺼짐");
+  check((await ev("document.getElementById('wWeak').disabled")) && !(await ev("document.getElementById('wWeak').checked")) && (await ev("document.getElementById('wWeak').closest('.chipcheck').hidden")), "표시가 없으면 「약한 단어만」 칸이 꺼지고 숨음");
   check((await sheet()).length > 3000 && !/시험지를 만들지 않았어요/.test(await T("#makeInfo")), "닫은 뒤 시험지가 일반 시험지로 다시 만들어짐");
 
   // 5) chunk 단원

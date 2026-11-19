@@ -4,7 +4,7 @@
   var WT = window.WT;
   var $ = function (id) { return document.getElementById(id); };
   var state = { lessonId: null };
-  var APP_VERSION = "v25"; // sw.js 의 CACHE 번호와 같게 올린다(설정 맨 아래에 보여 태블릿이 새 버전인지 확인)
+  var APP_VERSION = "v26"; // sw.js 의 CACHE 번호와 같게 올린다(설정 맨 아래에 보여 태블릿이 새 버전인지 확인)
 
   var SOURCE_LABEL = { practice: "연습 페이지", book: "교재 예문", exam: "지난 시험 문장", "new": "새 문장" };
 
@@ -1139,7 +1139,9 @@
     var text = isWord ? $("wWeakText") : $("cWeakText");
     box.disabled = n === 0;
     if (n === 0) box.checked = false;
-    text.textContent = (isWord ? "🔁 약한 단어만" : "🔁 약한 항목만") + (n ? " · " + n + "개" : " · 표시한 것이 없어요");
+    text.textContent = (isWord ? "약한 단어만 " : "약한 항목만 ") + n + "개";
+    // 표시한 것이 없으면 칸을 숨긴다(표시는 「⚙ 더 설정 → 틀린 단어 표시하기」나 단원 줄에서). 누적 시험지에서도 숨긴다.
+    box.closest(".chipcheck").hidden = n === 0 || !!it.virtual;
   }
 
   // 틀린 단어를 고르는 화면. 누를 때마다 이 기기에 바로 저장한다.
@@ -1277,11 +1279,12 @@
     // 아이에게는 시험지 번호만 보이고, 대상·문장 규칙·교재 대조 경고는 「⋯ 부모님용」 안에 접어 둔다.
     // 만들 때 알림(뺀 단어, 다른 힌트, 범위 전체 방식 등)도 부모님용이라 같이 접고, 요약 줄에 개수만 보인다.
     var ws = warnings || [];
+    // 시험지 번호도 아이에게는 필요 없어서 「⋯ 부모님용」 안에 둔다(같은 시험지를 다시 만들 때 「⚙ 더 설정」에 적는 번호).
     box.appendChild(el("div", { "class": "mkline" }, [
-      el("span", { "class": "seedno", text: "시험지 번호 " + seed }),
       el("details", { "class": "parentbox inline" }, [
         el("summary", { text: "⋯ 부모님용" + (data.verified ? "" : " · 교재 대조 전") + (ws.length ? " · 알림 " + ws.length + "개" : "") }),
-        el("div", { "class": "hint", style: "margin:4px 0 0", text: "대상 " + ownerLabel(data.owner) + " · " + (kind === "word" ? "단원 Lesson " + data.lesson : (data.title || "")) + " · " + rule }),
+        el("div", { "class": "hint seedno", style: "margin:4px 0 0", text: "시험지 번호 " + seed }),
+        el("div", { "class": "hint", style: "margin:2px 0 0", text: "대상 " + ownerLabel(data.owner) + " · " + (kind === "word" ? "단원 Lesson " + data.lesson : (data.title || "")) + " · " + rule }),
         data.verified ? null : el("div", { "class": "msg err", text: "⚠ 교재와 대조하기 전 데이터예요. 아이에게 주기 전에 부모님이 확인해 주세요." })
       ].concat(ws.map(function (w) { return el("div", { "class": "msg warn", text: w }); })))
     ]));

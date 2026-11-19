@@ -106,17 +106,17 @@ function getJson(url) {
   check((html1.match(/<tr class="[wm]">/g) || []).length === 10, "10문항");
   var info = await ev("document.getElementById('makeInfo').textContent"); // 대상·문장 규칙은 접힌 「부모님용」 안
   check(/대상 아이 B/.test(info) && /연습 페이지 문장만/.test(info), "대상과 문장 규칙이 「부모님용」 안에 있음");
-  // 시험지 탭 위쪽이 짧고, 아이에게는 시험지 번호만 보임
+  // 시험지 탭 위쪽이 짧고, 시험지 번호·대상·문장 규칙·교재 대조 경고는 모두 접힌 「⋯ 부모님용」 안
   var topH = await ev("Math.round(document.querySelector('#makePanel .makecard').getBoundingClientRect().height)");
   check(topH <= 260, "시험지 위쪽 설정 칸이 짧음(" + topH + "px, 260px 이하)");
   var vis = await ev("document.getElementById('makeInfo').innerText");
-  check(/시험지 번호 \d+/.test(vis) && !/대상 아이|문장 규칙|교재와 대조하기 전/.test(vis), "시험지 위에는 번호만 보이고 대상·문장 규칙·교재 대조 경고는 접혀 있음");
-  check((await ev("Array.from(document.querySelectorAll('#makePanel .mkacts button')).map(function(b){return b.id+(b.classList.contains('primary')?'*':'')}).join()")) === "btnSolve*,btnPrint,btnMake", "버튼 한 줄: 「태블릿에서 풀기」만 진한 버튼, 인쇄·새 시험지는 테두리");
+  check(/부모님용/.test(vis) && !/시험지 번호|대상 아이|문장 규칙|교재와 대조하기 전/.test(vis) && /시험지 번호 \d+/.test(info), "시험지 번호·대상·문장 규칙·교재 대조 경고는 접힌 「⋯ 부모님용」 안에 있음");
+  check((await ev("(function(){var bs=Array.from(document.querySelectorAll('#makePanel .mkacts button'));var s=getComputedStyle(bs[0]),p=getComputedStyle(bs[1]);return bs.map(function(b){return b.id+(b.querySelector('svg')?'+':'')}).join()+'|'+s.borderTopWidth+'|'+(s.backgroundColor!==p.backgroundColor)})()")) === "btnSolve+,btnPrint+,btnMake+|0px|true", "버튼 한 줄(B안): 선 아이콘, 테두리 없음, 「태블릿에서 풀기」만 테마 색 바탕");
   check((await ev("document.querySelector('.seg[data-for=wMode] button.on').getAttribute('data-v')")) === "regular" && (await ev("document.getElementById('wPartsBox').hidden")) && (await ev("document.querySelector('.mkmore').open")) === false, "「학원 시험 모양」을 누르면 그 버튼이 켜지고 낼 파트는 숨고, 나머지 설정은 「⚙ 더 설정」에 접혀 있음");
   var seed1 = (/시험지 번호 (\d+)/.exec(info) || [])[1];
   await ev("document.getElementById('btnMake').click()");
   await sleep(500);
-  var seed2 = (/시험지 번호 (\d+)/.exec(await ev("document.getElementById('makeInfo').innerText")) || [])[1];
+  var seed2 = (/시험지 번호 (\d+)/.exec(await ev("document.getElementById('makeInfo').textContent")) || [])[1];
   check(seed1 && seed2 && seed1 !== seed2, "다시 만들기를 누르면 번호가 바뀜(" + seed1 + " → " + seed2 + ")");
   // 같은 번호는 같은 시험지
   await ev("document.getElementById('optSeed').value='4242'; document.getElementById('optSeed').dispatchEvent(new Event('change'))");

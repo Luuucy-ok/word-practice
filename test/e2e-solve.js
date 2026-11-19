@@ -115,7 +115,7 @@ var C = load(/^A_chunk.*L07-08/);
   await ev("document.getElementById('btnSolve').click()");
   check((await ev("document.querySelector('#solveBody .qcard[data-i=\"0\"] input.ans').value")) === "", "다른 시험지 번호로 열면 이전 답을 불러오지 않음");
   await ev("document.getElementById('btnSolveClose').click()");
-  var seed = await ev("WT.store && (function(){return document.getElementById('makeInfo').innerText.match(/시험지 번호 (\\d+)/)[1]})()");
+  var seed = await ev("WT.store && (function(){return document.getElementById('makeInfo').textContent.match(/시험지 번호 (\\d+)/)[1]})()");
   await ev("(function(){var inp=document.getElementById('optSeed');inp.value='" + seed + "';inp.dispatchEvent(new Event('change'));})()");
   await sleep(300);
   await ev("document.getElementById('btnSolve').click()");
